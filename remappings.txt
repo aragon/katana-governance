@@ -1,3 +1,5 @@
+@aragon/osx/=lib/protocol-factory/lib/osx/packages/contracts/src/
+@aragon/protocol-factory/=lib/protocol-factory/
 @clock/=lib/ve-governance/src/clock/
 @curve/=lib/ve-governance/src/curve/
 @delegation/=lib/ve-governance/src/delegation/

@@ -10,9 +10,12 @@
 [submodule "lib/ve-governance"]
 	path = lib/ve-governance
 	url = https://github.com/aragon/ve-governance
-[submodule "lib/protocol-factory"]
-	path = lib/protocol-factory
-	url = https://github.com/aragon/protocol-factory
 [submodule "lib/osx-commons"]
 	path = lib/osx-commons
 	url = https://github.com/aragon/osx-commons
+[submodule "lib/osx"]
+	path = lib/osx
+	url = https://github.com/aragon/osx
+[submodule "lib/token-voting-plugin"]
+	path = lib/token-voting-plugin
+	url = https://github.com/aragon/token-voting-plugin
