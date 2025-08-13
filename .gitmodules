@@ -19,3 +19,6 @@
 [submodule "lib/token-voting-plugin"]
 	path = lib/token-voting-plugin
 	url = https://github.com/aragon/token-voting-plugin
+[submodule "lib/protocol-factory"]
+	path = lib/protocol-factory
+	url = https://github.com/aragon/protocol-factory

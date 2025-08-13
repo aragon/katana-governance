@@ -1,0 +1,26 @@
+{
+  "corePlugins": {
+    "adminPluginRepo": "0x67fb5C59B0a3EbA11fB843acd7b9a0828C04732B",
+    "multisigPluginRepo": "0x8E1AccD0b87DBC8A9BF39120B03DEc1d5f945ed1",
+    "stagedProposalProcessorPluginRepo": "0xC36Bb462D87cB0C1F93B97E06194566121D5A040",
+    "tokenVotingPluginRepo": "0x13bB5944685A78e635d05498467936f0903DEb7F"
+  },
+  "ens": {
+    "daoSubdomainRegistrar": "0x270B1eAe329f56eF8D83D992227c5c70306a6Dcb",
+    "ensRegistry": "0x1db6C906E67Aefc3d132A0341E27593Ca5c11EaE",
+    "pluginSubdomainRegistrar": "0x3e78027a2646658Ff15FDf62309F66223a32D610",
+    "publicResolver": "0xACBbB9c12e71Bd39e9979130e3472790E3529058"
+  },
+  "osx": {
+    "daoFactory": "0x57c52Ed735Cc678936278B88B5AbCB916B9e201B",
+    "daoRegistry": "0x44e3b4e36276735aAf8C01D54D5BBd93f8d202ae",
+    "globalExecutor": "0x459f89ff07b25BC787b5D01863c68889eb49349C",
+    "managementDao": "0x33649CDd313426d4acAb5d8B114C1262208d612D",
+    "managementDaoMultisig": "0x3AfBF2a241605eA3C795077Bb767d21099015415",
+    "placeholderSetup": "0x7a69903AA9104A6Bb9369E073A135dF888A07CC4",
+    "pluginRepoFactory": "0xbA428E29900DAE3854B9383613580BF7113cba39",
+    "pluginRepoRegistry": "0x344347fF8CB8E3A68bACc39Ffd4C236e2b0C94dA",
+    "pluginSetupProcessor": "0x6240e3aFa085B8393EB072911f3d65EF080b6bEf"
+  },
+  "protocolFactory": "0xb0409Df5285D9aA9Cb308a3d0A49F57EDa5a3017"
+}
