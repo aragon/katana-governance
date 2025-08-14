@@ -1,4 +1,3 @@
-@aragon/osx/=lib/protocol-factory/lib/osx/packages/contracts/src/
 @aragon/protocol-factory/=lib/protocol-factory/
 @clock/=lib/ve-governance/src/clock/
 @curve/=lib/ve-governance/src/curve/
@@ -23,3 +22,10 @@
 @utils/=lib/ve-governance/src/utils/
 @voting/=lib/ve-governance/src/voting/
 @ve/=lib/ve-governance/src/
+
+lib/protocol-factory/:@aragon/osx/=lib/protocol-factory/lib/osx/packages/contracts/src/
+lib/ve-governance/:@aragon/osx/=lib/ve-governance/lib/osx/packages/contracts/src/
+@aragon/osx/=lib/ve-governance/lib/osx/packages/contracts/src/
+
+
+@aragon/multisig-plugin/=lib/protocol-factory/lib/multisig-plugin/packages/contracts/src/

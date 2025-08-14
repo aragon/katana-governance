@@ -1,0 +1,2 @@
+forge script Deploy2 --rpc-url https://base-sepolia.g.alchemy.com/v2/E9LWD32GvGvBoNXBcilg7XnjT5riUXjg
+Compiling 1 files with Solc 0.8.17

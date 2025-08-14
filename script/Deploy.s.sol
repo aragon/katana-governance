@@ -2,89 +2,70 @@
 pragma solidity ^0.8.0;
 
 import {Script, console2 as console} from "forge-std/Script.sol";
-// import {Forkable} from "src/utils/Forkable.sol";
-// import {DAOHelper} from "src/utils/DAOHelper.sol";
-// import {
-//     TEST_SAFE_ADDRESS,
-//     OSX_SEPOLIA_DAOFactory,
-//     OSX_AVAX_C_DAOFactory,
-//     OSX_AVAX_C_GlobalExecutor
-// } from "src/utils/AragonState.sol";
-// import {
-//     IEcosystemComptroller,
-//     IEcosystemUnitroller,
-//     ISafe,
-//     IMultiSend,
-//     IMultiRewardDistributor
-// } from "src/Interfaces.sol";
-import {ProtocolFactoryBuilder, ProtocolFactory} from "@aragon/protocol-factory/test/helpers/ProtocolFactoryBuilder.sol";
-import {DAOFactory, PluginSetupRef, IPluginSetup, DAO, IDAO, PluginSetupProcessor} from "@aragon/osx/framework/dao/DAOFactory.sol";
-// import {
-//     StagedProposalProcessor as SPP
-// } from "@aragon/staged-proposal-processor/StagedProposalProcessor.sol";
 
-// import {Action, IExecutor} from "@aragon/osx-commons-contracts/src/executors/Executor.sol";
-// import {PermissionLib} from "@aragon/osx-commons-contracts/src/permission/PermissionLib.sol";
-// import {PermissionManager} from "@aragon/osx/core/permission/PermissionManager.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+
+import {DAOFactory, PluginSetupRef, IPluginSetup, DAO, PluginSetupProcessor} from "@aragon/osx/framework/dao/DAOFactory.sol";
+import {PluginRepoFactory} from "@aragon/osx/framework/plugin/repo/PluginRepoFactory.sol";
+
+import {IDAO} from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
+
 import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
 import {Multisig} from "@aragon/multisig-plugin/Multisig.sol";
 
 import {IPlugin} from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
-// import {PluginSetupRef} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
 
-// import {Comptroller as BenqiComptroller} from "src/benqi/Comptroller.sol";
-// import {Unitroller as BenqiUnitroller} from "src/benqi/Unitroller.sol";
-// import {ProxyLib} from "src/utils/ProxyLib.sol";
+import {ProtocolFactory} from "@aragon/protocol-factory/src/ProtocolFactory.sol";
+import {GaugeVoterSetupV1_4_0 as GaugeVoterSetup} from "@setup/GaugeVoterSetup_v1_4_0.sol";
 
-// import "src/utils/Permissions.sol";
+import {AddressGaugeVoter} from "@voting/AddressGaugeVoter.sol";
+import {LinearIncreasingCurve as Curve} from "@curve/LinearIncreasingCurve.sol";
+import {DynamicExitQueue as ExitQueue} from "@queue/DynamicExitQueue.sol";
+import {VotingEscrowV1_2_0 as VotingEscrow} from "@escrow/VotingEscrowIncreasing_v1_2_0.sol";
+import {ClockV1_2_0 as Clock} from "@clock/Clock_v1_2_0.sol";
+import {LockV1_2_0 as Lock} from "@lock/Lock_v1_2_0.sol";
+import {EscrowIVotesAdapter} from "@delegation/EscrowIVotesAdapter.sol";
+import {VeFactory, DeploymentParameters, Deployment, TokenParameters} from "../src/VeFactory.sol";
+import {MockERC20} from "@mocks/MockERC20.sol";
 
 contract Deploy is Script {
     // using ProxyLib for address;
+    using SafeCast for uint256;
 
     address deployer;
-    // DAOFactory daoFactory = DAOFactory(vm.envAddress("DAO_FACTORY"));
-    // PluginRepo multisigRepo = PluginRepo(vm.envAddress("MULTISIG_PLUGIN_REPO"));
-    DAOFactory internal daoFactory;
-    PluginRepo internal multisigRepo;
+    uint256 deployerPrivateKey = vm.envUint("DEPLOYMENT_PRIVATE_KEY");
 
-    modifier broadcast1() {
-        // deployer = vm.addr(vm.envOr("PRIVATE_KEY", uint256(0xC0FFEE)));
-        // vm.startBroadcast(deployer);
-        // _;
-        // vm.stopBroadcast();
-        _;
-    }
+    function run() public {
+        deployer = vm.addr(deployerPrivateKey);
+        vm.createSelectFork(vm.rpcUrl(vm.envString("RPC")));
 
-    function mainA() public {
-        // Deploy OSX
-        // Note that this will not be needed when osx is deployed on katana chain.
-        ProtocolFactory factory = new ProtocolFactoryBuilder().build();
+        vm.startBroadcast(deployerPrivateKey);
+
+        DeploymentParameters memory params = getDeploymentParameters();
+        // Deploys a dao + all the architecture of ve-governance.
+        VeFactory factory = new VeFactory(
+            params
+        );
         factory.deployOnce();
+        vm.makePersistent(address(factory));
 
-        ProtocolFactory.Deployment memory deployment = factory.getDeployment();
-        daoFactory = DAOFactory(deployment.daoFactory);
-        multisigRepo = PluginRepo(deployment.multisigPluginRepo);
+        printDeploymentSummary(factory);
 
-        // Deploy dao with multisig
-        _deployDAOWithMultisig(getMultisigMembers());
-
-        // Deploy ve...
-
+        vm.stopBroadcast();
     }
 
-    function getDeploymentParameters() public returns (DeploymentParameters memory parameters) {
-        address[] memory multisigMembers = readMultisigMembers();
-        TokenParameters[] memory tokenParameters = getTokenParameters(mintTestTokens);
-
-        // NOTE: Multisig is already deployed, using the existing Aragon's repo
-        // NOTE: Deploying the plugin setup from the current script to avoid code size constraints
+    function getDeploymentParameters()
+        public
+        returns (DeploymentParameters memory parameters)
+    {
+        TokenParameters[] memory tokenParameters = getTokenParameters(vm.envOr("MINT_TEST_TOKENS", false));
 
         GaugeVoterSetup gaugeVoterPluginSetup = deployGaugeVoterPluginSetup();
 
         parameters = DeploymentParameters({
             // Multisig settings
             minApprovals: vm.envUint("MIN_APPROVALS").toUint8(),
-            multisigMembers: multisigMembers,
+            multisigMembers: readMultisigMembers(),
             // Gauge Voter
             tokenParameters: tokenParameters,
             feePercent: vm.envUint("FEE_PERCENT").toUint16(),
@@ -93,111 +74,183 @@ contract Deploy is Script {
             votingPaused: vm.envBool("VOTING_PAUSED"),
             minDeposit: vm.envUint("MIN_DEPOSIT"),
             // Standard multisig repo
-            multisigPluginRepo: PluginRepo(vm.envAddress("MULTISIG_PLUGIN_REPO_ADDRESS")),
-            multisigPluginRelease: vm.envUint("MULTISIG_PLUGIN_RELEASE").toUint8(),
+            multisigPluginRepo: PluginRepo(
+                vm.envAddress("MULTISIG_PLUGIN_REPO_ADDRESS")
+            ),
+            multisigPluginRelease: vm
+                .envUint("MULTISIG_PLUGIN_RELEASE")
+                .toUint8(),
             multisigPluginBuild: vm.envUint("MULTISIG_PLUGIN_BUILD").toUint16(),
             // Voter plugin setup and ENS
             voterPluginSetup: gaugeVoterPluginSetup,
-            voterEnsSubdomain: vm.envString("SIMPLE_GAUGE_VOTER_REPO_ENS_SUBDOMAIN"),
+            voterEnsSubdomain: vm.envString(
+                "SIMPLE_GAUGE_VOTER_REPO_ENS_SUBDOMAIN"
+            ),
             // OSx addresses
             osxDaoFactory: vm.envAddress("DAO_FACTORY"),
-            pluginSetupProcessor: PluginSetupProcessor(vm.envAddress("PLUGIN_SETUP_PROCESSOR")),
-            pluginRepoFactory: PluginRepoFactory(vm.envAddress("PLUGIN_REPO_FACTORY"))
+            pluginSetupProcessor: PluginSetupProcessor(
+                vm.envAddress("PLUGIN_SETUP_PROCESSOR")
+            ),
+            pluginRepoFactory: PluginRepoFactory(
+                vm.envAddress("PLUGIN_REPO_FACTORY")
+            )
         });
     }
 
-    // function _deployDAOWithMultisig(
-    //     address[] memory owners
-    // ) internal returns (DAO, Multisig) {
-    //     DAOFactory.DAOSettings memory settings = DAOFactory.DAOSettings({
-    //         subdomain: "",
-    //         metadata: bytes(""),
-    //         daoURI: "",
-    //         trustedForwarder: address(0)
-    //     });
+    function deployGaugeVoterPluginSetup()
+        internal
+        returns (GaugeVoterSetup result)
+    {
+        int256[3] memory coefficients;
+        coefficients[0] = vm.envUint("CONSTANT_COEFFICIENT").toInt256();
+        coefficients[1] = vm.envUint("LINEAR_COEFFICIENT").toInt256();
+        coefficients[2] = 0;
 
-    //     // encode the multisig setup data
-    //     DAOFactory.PluginSettings[]
-    //         memory pluginSettings = defaultDaoFactoryMultisigPluginSettings(
-    //             owners,
-    //             1, // min approvals
-    //             address(multisigRepo) // the multisig plugin repo address
-    //         );
+        uint256 maxEpoch = vm.envUint("MAX_EPOCHS");
 
-    //     // create the DAO with the multisig plugin
-    //     (
-    //         DAO dao,
-    //         DAOFactory.InstalledPlugin[] memory installedPlugins
-    //     ) = daoFactory.createDao(settings, pluginSettings);
+        result = new GaugeVoterSetup(
+            address(new AddressGaugeVoter()),
+            address(new Curve(coefficients, maxEpoch)),
+            address(new ExitQueue()),
+            address(new VotingEscrow()),
+            address(new Clock()),
+            address(new Lock()),
+            address(new EscrowIVotesAdapter())
+        );
+    }
 
-    //     // instead the multisig should have execute permission and the deployer should be a member
-    //     Multisig multisig = Multisig(installedPlugins[0].plugin);
-
-    //     // roll +1 block for multisig to be ready
-    //     vm.roll(block.number + 1);
-
-    //     return (dao, multisig);
-    // }
-
-    // function defaultDaoFactoryMultisigPluginSettings(
-    //     address[] memory _signers,
-    //     uint8 _minApprovals,
-    //     address _multisigPluginRepo
-    // ) internal pure returns (DAOFactory.PluginSettings[] memory) {
-    //     DAOFactory.PluginSettings[]
-    //         memory pluginSettings = new DAOFactory.PluginSettings[](1);
-    //     bytes memory multisigSetupData;
-    //     {
-    //         bytes memory pluginMetadata = bytes("Multisig Plugin Metadata");
-
-    //         Multisig.MultisigSettings memory multisigSettings = Multisig
-    //             .MultisigSettings({
-    //                 onlyListed: true,
-    //                 minApprovals: _minApprovals
-    //             });
-
-    //         IPlugin.TargetConfig memory targetConfig = IPlugin.TargetConfig({
-    //             target: address(0), // Defaults to the DAO
-    //             operation: IPlugin.Operation.Call
-    //         });
-
-    //         // encode it in the scope as we don't need the intermediate variables
-    //         multisigSetupData = abi.encode(
-    //             _signers,
-    //             multisigSettings,
-    //             targetConfig,
-    //             pluginMetadata
-    //         );
-    //     }
-
-    //     // deploy a 1.3 version of the multisig plugin
-    //     // the protocol factory will have already deployed the multisig plugin repo
-    //     pluginSettings[0] = DAOFactory.PluginSettings({
-    //         pluginSetupRef: PluginSetupRef({
-    //             versionTag: PluginRepo.Tag(1, 3),
-    //             pluginSetupRepo: PluginRepo(_multisigPluginRepo)
-    //         }),
-    //         data: multisigSetupData
-    //     });
-
-    //     return pluginSettings;
-    // }
-
-    function readMultisigMembers() public view returns (address[] memory result) {
+    function readMultisigMembers()
+        public
+        view
+        returns (address[] memory result)
+    {
         // JSON list of members
         string memory membersFileName = "multisig-members.json";
-        string memory path = string.concat(vm.projectRoot(), "/", membersFileName);
+        string memory path = string.concat(
+            vm.projectRoot(),
+            "/",
+            membersFileName
+        );
         string memory strJson = vm.readFile(path);
-        
+
         bool exists = vm.keyExistsJson(strJson, "$.members");
         if (!exists) {
-            revert("The file pointed by MANAGEMENT_DAO_MEMBERS_FILE_NAME does not contain any members");
+            revert(
+                "The file pointed by MANAGEMENT_DAO_MEMBERS_FILE_NAME does not contain any members"
+            );
         }
 
         result = vm.parseJsonAddressArray(strJson, "$.members");
 
         if (result.length == 0) {
-            revert("The file pointed by MANAGEMENT_DAO_MEMBERS_FILE_NAME needs to contain at least one member");
+            revert(
+                "The file pointed by MANAGEMENT_DAO_MEMBERS_FILE_NAME needs to contain at least one member"
+            );
         }
+    }
+
+    function getTokenParameters(
+        bool mintTestTokens
+    ) internal returns (TokenParameters[] memory tokenParameters) {
+        if (mintTestTokens) {
+            // MINT
+            console.log("Deploying 2 token contracts (testing)");
+
+            address[] memory multisigMembers = readMultisigMembers();
+            tokenParameters = new TokenParameters[](2);
+            tokenParameters[0] = TokenParameters({
+                token: createTestToken(multisigMembers),
+                veTokenName: "VE Token 1",
+                veTokenSymbol: "veTK1"
+            });
+            tokenParameters[1] = TokenParameters({
+                token: createTestToken(multisigMembers),
+                veTokenName: "VE Token 2",
+                veTokenSymbol: "veTK2"
+            });
+        } else {
+            // USE TOKEN(s)
+            bool hasTwoTokens = vm.envAddress("TOKEN2_ADDRESS") != address(0);
+            tokenParameters = new TokenParameters[](hasTwoTokens ? 2 : 1);
+
+            console.log("Using token", vm.envAddress("TOKEN1_ADDRESS"));
+            tokenParameters[0] = TokenParameters({
+                token: vm.envAddress("TOKEN1_ADDRESS"),
+                veTokenName: vm.envString("VE_TOKEN1_NAME"),
+                veTokenSymbol: vm.envString("VE_TOKEN1_SYMBOL")
+            });
+
+            if (hasTwoTokens) {
+                console.log("Using token", vm.envAddress("TOKEN2_ADDRESS"));
+                tokenParameters[1] = TokenParameters({
+                    token: vm.envAddress("TOKEN2_ADDRESS"),
+                    veTokenName: vm.envString("VE_TOKEN2_NAME"),
+                    veTokenSymbol: vm.envString("VE_TOKEN2_SYMBOL")
+                });
+            }
+        }
+    }
+
+    function createTestToken(address[] memory holders) internal returns (address) {
+        MockERC20 newToken = new MockERC20();
+
+        for (uint i = 0; i < holders.length; ) {
+            newToken.mint(holders[i], 5000 ether);
+
+            unchecked {
+                i++;
+            }
+        }
+
+        return address(newToken);
+    }
+
+    function printDeploymentSummary(VeFactory factory) internal view {
+        DeploymentParameters memory deploymentParameters = factory.getDeploymentParameters();
+        Deployment memory deployment = factory.getDeployment();
+
+        console.log("");
+        console.log("Deployed from: ", deployer);
+        console.log("Chain ID:", block.chainid);
+        console.log("Factory:", address(factory));
+        console.log("");
+        console.log("DAO:", address(deployment.dao));
+        console.log("");
+
+        console.log("Plugins");
+        console.log("- Multisig plugin:", address(deployment.multisigPlugin));
+        console.log("");
+
+        for (uint i = 0; i < deployment.gaugeVoterPluginSets.length; ) {
+            console.log("- Using token:", address(deploymentParameters.tokenParameters[i].token));
+            console.log(
+                "  Gauge voter plugin:",
+                address(deployment.gaugeVoterPluginSets[i].plugin)
+            );
+            console.log("  Curve:", address(deployment.gaugeVoterPluginSets[i].curve));
+            console.log("  Exit Queue:", address(deployment.gaugeVoterPluginSets[i].exitQueue));
+            console.log(
+                "  Voting Escrow:",
+                address(deployment.gaugeVoterPluginSets[i].votingEscrow)
+            );
+            console.log("  Clock:", address(deployment.gaugeVoterPluginSets[i].clock));
+            console.log("  NFT Lock:", address(deployment.gaugeVoterPluginSets[i].nftLock));
+            console.log(
+                "  Escrow IVotes Adapter:",
+                address(deployment.gaugeVoterPluginSets[i].delegationAdapter)
+            );
+            console.log("");
+
+            unchecked {
+                i++;
+            }
+        }
+
+        console.log("Plugin repositories");
+        console.log(
+            "- Multisig plugin repository (existing):",
+            address(deploymentParameters.multisigPluginRepo)
+        );
+        console.log("- Gauge voter plugin repository:", address(deployment.gaugeVoterPluginRepo));
     }
 }
