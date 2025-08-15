@@ -12,7 +12,6 @@ verbosity=5
 
 fs_permissions = [
     { access = "read", path = "./multisig-members.json" },
-    { access = "read", path = "./lib/protocol-factory/out/ProtocolFactoryBuilder.sol/ProtocolFactoryBuilder.json" },
     { access = "write", path = "./artifacts" },
 ]
 
