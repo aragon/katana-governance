@@ -47,7 +47,6 @@ contract Deploy is Script {
             params
         );
         factory.deployOnce();
-        vm.makePersistent(address(factory));
 
         printDeploymentSummary(factory);
 
@@ -66,6 +65,7 @@ contract Deploy is Script {
             // Multisig settings
             minApprovals: vm.envUint("MIN_APPROVALS").toUint8(),
             multisigMembers: readMultisigMembers(),
+            multisigMetadata: bytes(vm.envBytes("MULTISIG_METADATA_URI")),
             // Gauge Voter
             tokenParameters: tokenParameters,
             feePercent: vm.envUint("FEE_PERCENT").toUint16(),

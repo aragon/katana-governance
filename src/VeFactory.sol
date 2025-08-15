@@ -53,6 +53,7 @@ struct DeploymentParameters {
     // Multisig settings
     uint16 minApprovals;
     address[] multisigMembers;
+    bytes multisigMetadata;
     // Gauge Voter
     TokenParameters[] tokenParameters;
     uint16 feePercent;
@@ -138,6 +139,7 @@ contract VeFactory {
         parameters.osxDaoFactory = _parameters.osxDaoFactory;
         parameters.pluginSetupProcessor = _parameters.pluginSetupProcessor;
         parameters.pluginRepoFactory = _parameters.pluginRepoFactory;
+        parameters.multisigMetadata = _parameters.multisigMetadata;
     }
 
     /// @notice Run the deployment and store the artifacts in a read-only store that can be retrieved via `getDeployment()` and `getDeploymentParameters()`
@@ -271,7 +273,7 @@ contract VeFactory {
                 parameters.minApprovals
             ),
             IPlugin.TargetConfig({target: address(dao), operation: IPlugin.Operation.Call}),
-            bytes("metadata-multisig-todo")
+            parameters.multisigMetadata
         );
         
         (address plugin, IPluginSetup.PreparedSetupData memory preparedSetupData) = parameters
