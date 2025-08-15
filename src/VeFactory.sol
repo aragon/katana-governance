@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 
-import {DAO} from "@aragon/osx/core/dao/DAO.sol";
-import {DAOFactory} from "@aragon/osx/framework/dao/DAOFactory.sol";
-import {IWithdrawalQueueErrors} from "@escrow/IVotingEscrowIncreasing.sol";
-import {IAddressGaugeVote as IGaugeVote} from "@voting/IAddressGaugeVoter.sol";
+import { DAO } from "@aragon/osx/core/dao/DAO.sol";
+import { DAOFactory } from "@aragon/osx/framework/dao/DAOFactory.sol";
+import { IWithdrawalQueueErrors } from "@escrow/IVotingEscrowIncreasing.sol";
+import { IAddressGaugeVote as IGaugeVote } from "@voting/IAddressGaugeVoter.sol";
 import {
     VotingEscrow,
     Clock,
@@ -15,23 +15,18 @@ import {
     GaugeVoterSetupV1_4_0 as GaugeVoterSetup,
     IGaugeVoterSetupParams
 } from "@setup/GaugeVoterSetup_v1_4_0.sol";
-import {PluginSetupProcessor} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
-import {
-    hashHelpers,
-    PluginSetupRef
-} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
-import {PluginRepoFactory} from "@aragon/osx/framework/plugin/repo/PluginRepoFactory.sol";
-import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
-import {IPluginSetup} from "@aragon/osx/framework/plugin/setup/IPluginSetup.sol";
-import {Multisig} from "@aragon/multisig-plugin/Multisig.sol";
-import {
-    MultisigSetup as MultisigPluginSetup
-} from "@aragon/multisig-plugin/MultisigSetup.sol";
-import {IPlugin} from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
+import { PluginSetupProcessor } from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
+import { hashHelpers, PluginSetupRef } from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
+import { PluginRepoFactory } from "@aragon/osx/framework/plugin/repo/PluginRepoFactory.sol";
+import { PluginRepo } from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
+import { IPluginSetup } from "@aragon/osx/framework/plugin/setup/IPluginSetup.sol";
+import { Multisig } from "@aragon/multisig-plugin/Multisig.sol";
+import { MultisigSetup as MultisigPluginSetup } from "@aragon/multisig-plugin/MultisigSetup.sol";
+import { IPlugin } from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
 
-import {createERC1967Proxy} from "@aragon/osx/utils/Proxy.sol";
-import {PermissionLib} from "@aragon/osx/core/permission/PermissionLib.sol";
-import {EscrowIVotesAdapter} from "@delegation/EscrowIVotesAdapter.sol";
+import { createERC1967Proxy } from "@aragon/osx/utils/Proxy.sol";
+import { PermissionLib } from "@aragon/osx/core/permission/PermissionLib.sol";
+import { EscrowIVotesAdapter } from "@delegation/EscrowIVotesAdapter.sol";
 
 /// @notice The struct containing all the parameters to deploy the DAO
 /// @param minApprovals The amount of approvals required for the multisig to be able to execute a proposal on the DAO
@@ -100,7 +95,8 @@ struct Deployment {
     PluginRepo gaugeVoterPluginRepo;
 }
 
-/// @notice A singleton contract designed to run the deployment once and become a read-only store of the contracts deployed
+/// @notice A singleton contract designed to run the deployment once and become a read-only store of the contracts
+/// deployed
 contract VeFactory {
     function version() external pure returns (string memory) {
         return "1.3.0";
@@ -118,7 +114,7 @@ contract VeFactory {
         parameters.minApprovals = _parameters.minApprovals;
         parameters.multisigMembers = _parameters.multisigMembers;
 
-        for (uint i = 0; i < _parameters.tokenParameters.length; ) {
+        for (uint256 i = 0; i < _parameters.tokenParameters.length;) {
             parameters.tokenParameters.push(_parameters.tokenParameters[i]);
 
             unchecked {
@@ -142,9 +138,12 @@ contract VeFactory {
         parameters.multisigMetadata = _parameters.multisigMetadata;
     }
 
-    /// @notice Run the deployment and store the artifacts in a read-only store that can be retrieved via `getDeployment()` and `getDeploymentParameters()`
+    /// @notice Run the deployment and store the artifacts in a read-only store that can be retrieved via
+    /// `getDeployment()` and `getDeploymentParameters()`
     function deployOnce() public {
-        if (address(deployment.dao) != address(0)) revert AlreadyDeployed();
+        if (address(deployment.dao) != address(0)) {
+            revert AlreadyDeployed();
+        }
 
         // Deploy the DAO (this contract is the interim owner)
         DAO dao = prepareDao();
@@ -158,10 +157,8 @@ contract VeFactory {
         {
             IPluginSetup.PreparedSetupData memory preparedMultisigSetupData;
 
-            PluginRepo.Tag memory repoTag = PluginRepo.Tag(
-                parameters.multisigPluginRelease,
-                parameters.multisigPluginBuild
-            );
+            PluginRepo.Tag memory repoTag =
+                PluginRepo.Tag(parameters.multisigPluginRelease, parameters.multisigPluginBuild);
 
             (deployment.multisigPlugin, preparedMultisigSetupData) = prepareMultisig(dao, repoTag);
 
@@ -183,26 +180,14 @@ contract VeFactory {
 
             PluginRepo pluginRepo = prepareGaugeVoterPluginRepo(dao);
 
-            for (uint i = 0; i < parameters.tokenParameters.length; ) {
-                (
-                    pluginSet,
-                    deployment.gaugeVoterPluginRepo,
-                    preparedVoterSetupData
-                ) = prepareGaugeVoterPlugin(
-                    dao,
-                    parameters.tokenParameters[i],
-                    pluginRepo,
-                    repoTag
-                );
+            for (uint256 i = 0; i < parameters.tokenParameters.length;) {
+                (pluginSet, deployment.gaugeVoterPluginRepo, preparedVoterSetupData) =
+                    prepareGaugeVoterPlugin(dao, parameters.tokenParameters[i], pluginRepo, repoTag);
 
                 deployment.gaugeVoterPluginSets.push(pluginSet);
 
                 applyPluginInstallation(
-                    dao,
-                    address(pluginSet.plugin),
-                    deployment.gaugeVoterPluginRepo,
-                    repoTag,
-                    preparedVoterSetupData
+                    dao, address(pluginSet.plugin), deployment.gaugeVoterPluginRepo, repoTag, preparedVoterSetupData
                 );
 
                 activateGaugeVoterInstallation(dao, pluginSet);
@@ -241,22 +226,14 @@ contract VeFactory {
         );
 
         // Grant DAO all the needed permissions on itself
-        PermissionLib.SingleTargetPermission[]
-            memory items = new PermissionLib.SingleTargetPermission[](3);
-        items[0] = PermissionLib.SingleTargetPermission(
-            PermissionLib.Operation.Grant,
-            address(dao),
-            dao.ROOT_PERMISSION_ID()
-        );
+        PermissionLib.SingleTargetPermission[] memory items = new PermissionLib.SingleTargetPermission[](3);
+        items[0] =
+            PermissionLib.SingleTargetPermission(PermissionLib.Operation.Grant, address(dao), dao.ROOT_PERMISSION_ID());
         items[1] = PermissionLib.SingleTargetPermission(
-            PermissionLib.Operation.Grant,
-            address(dao),
-            dao.UPGRADE_DAO_PERMISSION_ID()
+            PermissionLib.Operation.Grant, address(dao), dao.UPGRADE_DAO_PERMISSION_ID()
         );
         items[2] = PermissionLib.SingleTargetPermission(
-            PermissionLib.Operation.Grant,
-            address(dao),
-            dao.REGISTER_STANDARD_CALLBACK_PERMISSION_ID()
+            PermissionLib.Operation.Grant, address(dao), dao.REGISTER_STANDARD_CALLBACK_PERMISSION_ID()
         );
 
         dao.applySingleTargetPermissions(address(dao), items);
@@ -265,40 +242,37 @@ contract VeFactory {
     function prepareMultisig(
         DAO dao,
         PluginRepo.Tag memory repoTag
-    ) internal returns (Multisig, IPluginSetup.PreparedSetupData memory) {
+    )
+        internal
+        returns (Multisig, IPluginSetup.PreparedSetupData memory)
+    {
         bytes memory settingsData = abi.encode(
             parameters.multisigMembers,
             Multisig.MultisigSettings(
                 true, // onlyListed
                 parameters.minApprovals
             ),
-            IPlugin.TargetConfig({target: address(dao), operation: IPlugin.Operation.Call}),
+            IPlugin.TargetConfig({ target: address(dao), operation: IPlugin.Operation.Call }),
             parameters.multisigMetadata
         );
-        
+
         (address plugin, IPluginSetup.PreparedSetupData memory preparedSetupData) = parameters
             .pluginSetupProcessor
             .prepareInstallation(
-                address(dao),
-                PluginSetupProcessor.PrepareInstallationParams(
-                    PluginSetupRef(repoTag, parameters.multisigPluginRepo),
-                    settingsData
-                )
-            );
+            address(dao),
+            PluginSetupProcessor.PrepareInstallationParams(
+                PluginSetupRef(repoTag, parameters.multisigPluginRepo), settingsData
+            )
+        );
 
         return (Multisig(plugin), preparedSetupData);
     }
 
     function prepareGaugeVoterPluginRepo(DAO dao) internal returns (PluginRepo pluginRepo) {
         // Publish repo
-        pluginRepo = PluginRepoFactory(parameters.pluginRepoFactory)
-            .createPluginRepoWithFirstVersion(
-                parameters.voterEnsSubdomain,
-                address(parameters.voterPluginSetup),
-                address(dao),
-                " ",
-                " "
-            );
+        pluginRepo = PluginRepoFactory(parameters.pluginRepoFactory).createPluginRepoWithFirstVersion(
+            parameters.voterEnsSubdomain, address(parameters.voterPluginSetup), address(dao), " ", " "
+        );
     }
 
     function prepareGaugeVoterPlugin(
@@ -306,7 +280,10 @@ contract VeFactory {
         TokenParameters memory tokenParameters,
         PluginRepo pluginRepo,
         PluginRepo.Tag memory repoTag
-    ) internal returns (GaugePluginSet memory, PluginRepo, IPluginSetup.PreparedSetupData memory) {
+    )
+        internal
+        returns (GaugePluginSet memory, PluginRepo, IPluginSetup.PreparedSetupData memory)
+    {
         // Plugin settings
         bytes memory settingsData = parameters.voterPluginSetup.encodeSetupData(
             IGaugeVoterSetupParams({
@@ -324,12 +301,9 @@ contract VeFactory {
         (address plugin, IPluginSetup.PreparedSetupData memory preparedSetupData) = parameters
             .pluginSetupProcessor
             .prepareInstallation(
-                address(dao),
-                PluginSetupProcessor.PrepareInstallationParams(
-                    PluginSetupRef(repoTag, pluginRepo),
-                    settingsData
-                )
-            );
+            address(dao),
+            PluginSetupProcessor.PrepareInstallationParams(PluginSetupRef(repoTag, pluginRepo), settingsData)
+        );
 
         address[] memory helpers = preparedSetupData.helpers;
         GaugePluginSet memory pluginSet = GaugePluginSet({
@@ -351,7 +325,9 @@ contract VeFactory {
         PluginRepo pluginRepo,
         PluginRepo.Tag memory pluginRepoTag,
         IPluginSetup.PreparedSetupData memory preparedSetupData
-    ) internal {
+    )
+        internal
+    {
         parameters.pluginSetupProcessor.applyInstallation(
             address(dao),
             PluginSetupProcessor.ApplyInstallationParams(
@@ -364,22 +340,14 @@ contract VeFactory {
     }
 
     function activateGaugeVoterInstallation(DAO dao, GaugePluginSet memory pluginSet) internal {
-        dao.grant(
-            address(pluginSet.votingEscrow),
-            address(this),
-            pluginSet.votingEscrow.ESCROW_ADMIN_ROLE()
-        );
+        dao.grant(address(pluginSet.votingEscrow), address(this), pluginSet.votingEscrow.ESCROW_ADMIN_ROLE());
 
         pluginSet.votingEscrow.setCurve(address(pluginSet.curve));
         pluginSet.votingEscrow.setQueue(address(pluginSet.exitQueue));
         pluginSet.votingEscrow.setVoter(address(pluginSet.plugin));
         pluginSet.votingEscrow.setLockNFT(address(pluginSet.nftLock));
         pluginSet.votingEscrow.setIVotesAdapter(address(pluginSet.delegationAdapter));
-        dao.revoke(
-            address(pluginSet.votingEscrow),
-            address(this),
-            pluginSet.votingEscrow.ESCROW_ADMIN_ROLE()
-        );
+        dao.revoke(address(pluginSet.votingEscrow), address(this), pluginSet.votingEscrow.ESCROW_ADMIN_ROLE());
     }
 
     function grantApplyInstallationPermissions(DAO dao) internal {
@@ -403,11 +371,7 @@ contract VeFactory {
         );
 
         // Revoke the PSP permission to manage permissions on the new DAO
-        dao.revoke(
-            address(dao),
-            address(parameters.pluginSetupProcessor),
-            dao.ROOT_PERMISSION_ID()
-        );
+        dao.revoke(address(dao), address(parameters.pluginSetupProcessor), dao.ROOT_PERMISSION_ID());
     }
 
     function revokeOwnerPermission(DAO dao) internal {

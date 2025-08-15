@@ -6,10 +6,10 @@ import "../src/VKatMetadata.sol";
 import "../src/IVKatMetadata.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import {DaoUnauthorized} from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
+import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
 
-import {MockDAO} from "./mocks/MockDAO.sol";
-import {MockVKatERC721} from "./mocks/MockVKatERC721.sol";
+import { MockDAO } from "./mocks/MockDAO.sol";
+import { MockVKatERC721 } from "./mocks/MockVKatERC721.sol";
 
 contract VKatMetadataTest is Test {
     VKatMetadata public implementation;
@@ -30,11 +30,7 @@ contract VKatMetadataTest is Test {
 
     IVKatMetadata.VKatMetaDataV1 defaultPrefs;
 
-    event PreferencesSet(
-        uint256 indexed tokenId,
-        address indexed owner,
-        IVKatMetadata.VKatMetaDataV1 preferences
-    );
+    event PreferencesSet(uint256 indexed tokenId, address indexed owner, IVKatMetadata.VKatMetaDataV1 preferences);
 
     event DefaultPreferencesSet(IVKatMetadata.VKatMetaDataV1 preferences);
     event RewardTokenAdded(address indexed token);
@@ -59,17 +55,10 @@ contract VKatMetadataTest is Test {
 
         // Deploy proxy
         bytes memory initData = abi.encodeWithSelector(
-            VKatMetadata.initialize.selector,
-            address(dao),
-            address(vkat),
-            defaultPrefs.rewardTokens,
-            defaultPrefs
+            VKatMetadata.initialize.selector, address(dao), address(vkat), defaultPrefs.rewardTokens, defaultPrefs
         );
 
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(implementation),
-            initData
-        );
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
 
         metadata = VKatMetadata(address(proxy));
 
@@ -98,12 +87,8 @@ contract VKatMetadataTest is Test {
         assertEq(address(metadata.vKat()), address(vkat));
 
         // Check default preferences
-        IVKatMetadata.VKatMetaDataV1 memory prefs = metadata
-            .getDefaultPreferences();
-        assertEq(
-            uint8(prefs.votingPolicy),
-            uint8(IVKatMetadata.VotingPolicy.ProfitMaximize)
-        );
+        IVKatMetadata.VKatMetaDataV1 memory prefs = metadata.getDefaultPreferences();
+        assertEq(uint8(prefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.ProfitMaximize));
         assertEq(prefs.rewardTokens.length, 2);
         assertEq(prefs.rewardTokens[0], token1);
         assertEq(prefs.rewardTokens[1], token2);
@@ -118,12 +103,7 @@ contract VKatMetadataTest is Test {
 
     function test_Revert_IfInitializeAgain() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        metadata.initialize(
-            address(dao),
-            address(vkat),
-            new address[](0),
-            defaultPrefs
-        );
+        metadata.initialize(address(dao), address(vkat), new address[](0), defaultPrefs);
     }
 
     // ============= Admin Functions Tests =============
@@ -139,12 +119,7 @@ contract VKatMetadataTest is Test {
     }
 
     function test_AddRewardTokenAlreadyExists() public prankAdmin {
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IVKatMetadata.TokenAlreadyInWhitelist.selector,
-                token1
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(IVKatMetadata.TokenAlreadyInWhitelist.selector, token1));
         metadata.addRewardToken(token1);
     }
 
@@ -153,11 +128,7 @@ contract VKatMetadataTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                DaoUnauthorized.selector,
-                address(dao),
-                address(metadata),
-                address(alice),
-                ADMIN_ROLE
+                DaoUnauthorized.selector, address(dao), address(metadata), address(alice), ADMIN_ROLE
             )
         );
         metadata.addRewardToken(token3);
@@ -176,12 +147,7 @@ contract VKatMetadataTest is Test {
     }
 
     function test_RemoveRewardTokenNotInWhitelist() public prankAdmin {
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IVKatMetadata.TokenNotInWhitelist.selector,
-                token3
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(IVKatMetadata.TokenNotInWhitelist.selector, token3));
         metadata.removeRewardToken(token3);
     }
 
@@ -190,11 +156,7 @@ contract VKatMetadataTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                DaoUnauthorized.selector,
-                address(dao),
-                address(metadata),
-                address(alice),
-                ADMIN_ROLE
+                DaoUnauthorized.selector, address(dao), address(metadata), address(alice), ADMIN_ROLE
             )
         );
         metadata.removeRewardToken(token1);
@@ -214,21 +176,14 @@ contract VKatMetadataTest is Test {
         emit DefaultPreferencesSet(newDefaults);
         metadata.setDefaultPreferences(newDefaults);
 
-        IVKatMetadata.VKatMetaDataV1 memory prefs = metadata
-            .getDefaultPreferences();
-        assertEq(
-            uint8(prefs.votingPolicy),
-            uint8(IVKatMetadata.VotingPolicy.Manual)
-        );
+        IVKatMetadata.VKatMetaDataV1 memory prefs = metadata.getDefaultPreferences();
+        assertEq(uint8(prefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.Manual));
         assertEq(prefs.rewardTokens.length, 1);
         assertEq(prefs.rewardTokens[0], token2);
         assertEq(prefs.rewardTokenWeights[0], 100);
     }
 
-    function test_SetDefaultPreferencesWithNonWhitelistedToken()
-        public
-        prankAdmin
-    {
+    function test_SetDefaultPreferencesWithNonWhitelistedToken() public prankAdmin {
         IVKatMetadata.VKatMetaDataV1 memory newDefaults;
         newDefaults.votingPolicy = IVKatMetadata.VotingPolicy.Manual;
         newDefaults.rewardTokens = new address[](1);
@@ -236,12 +191,7 @@ contract VKatMetadataTest is Test {
         newDefaults.rewardTokenWeights = new uint16[](1);
         newDefaults.rewardTokenWeights[0] = 100;
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IVKatMetadata.TokenNotWhitelisted.selector,
-                nonWhitelistedToken
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(IVKatMetadata.TokenNotWhitelisted.selector, nonWhitelistedToken));
         metadata.setDefaultPreferences(newDefaults);
     }
 
@@ -250,11 +200,7 @@ contract VKatMetadataTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                DaoUnauthorized.selector,
-                address(dao),
-                address(metadata),
-                address(alice),
-                ADMIN_ROLE
+                DaoUnauthorized.selector, address(dao), address(metadata), address(alice), ADMIN_ROLE
             )
         );
         metadata.setDefaultPreferences(defaultPrefs);
@@ -284,14 +230,10 @@ contract VKatMetadataTest is Test {
         emit PreferencesSet(tokenId, alice, customPrefs);
         metadata.setPreferences(tokenId, customPrefs);
 
-        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata
-            .getPreferencesOrDefault(tokenId);
+        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata.getPreferencesOrDefault(tokenId);
 
         assertEq(owner, alice);
-        assertEq(
-            uint8(prefs.votingPolicy),
-            uint8(IVKatMetadata.VotingPolicy.Manual)
-        );
+        assertEq(uint8(prefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.Manual));
         assertEq(prefs.rewardTokens.length, 2);
         assertEq(prefs.rewardTokens[0], token2);
         assertEq(prefs.rewardTokens[1], token1);
@@ -331,12 +273,7 @@ contract VKatMetadataTest is Test {
         customPrefs.rewardTokenWeights = new uint16[](1);
         customPrefs.rewardTokenWeights[0] = 100;
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IVKatMetadata.TokenNotWhitelisted.selector,
-                nonWhitelistedToken
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(IVKatMetadata.TokenNotWhitelisted.selector, nonWhitelistedToken));
         metadata.setPreferences(tokenId, customPrefs);
 
         vm.stopPrank();
@@ -376,14 +313,10 @@ contract VKatMetadataTest is Test {
         metadata.setPreferences(tokenId, customPrefs);
         vm.stopPrank();
 
-        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata
-            .getPreferencesOrDefault(tokenId);
+        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata.getPreferencesOrDefault(tokenId);
 
         assertEq(owner, alice);
-        assertEq(
-            uint8(prefs.votingPolicy),
-            uint8(IVKatMetadata.VotingPolicy.Manual)
-        );
+        assertEq(uint8(prefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.Manual));
         assertEq(prefs.rewardTokens.length, 1);
         assertEq(prefs.rewardTokens[0], token1);
     }
@@ -393,15 +326,11 @@ contract VKatMetadataTest is Test {
         vm.prank(address(this));
         uint256 tokenId = vkat.mint(alice);
 
-        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata
-            .getPreferencesOrDefault(tokenId);
+        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata.getPreferencesOrDefault(tokenId);
 
         assertEq(owner, alice);
         // Should return default preferences
-        assertEq(
-            uint8(prefs.votingPolicy),
-            uint8(IVKatMetadata.VotingPolicy.ProfitMaximize)
-        );
+        assertEq(uint8(prefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.ProfitMaximize));
         assertEq(prefs.rewardTokens.length, 2);
         assertEq(prefs.rewardTokens[0], token1);
         assertEq(prefs.rewardTokens[1], token2);
@@ -429,14 +358,10 @@ contract VKatMetadataTest is Test {
         vkat.burn(tokenId);
 
         // Should still return preferences but owner should be address(0)
-        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata
-            .getPreferencesOrDefault(tokenId);
+        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata.getPreferencesOrDefault(tokenId);
 
         assertEq(owner, address(0));
-        assertEq(
-            uint8(prefs.votingPolicy),
-            uint8(IVKatMetadata.VotingPolicy.Manual)
-        );
+        assertEq(uint8(prefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.Manual));
         assertEq(prefs.rewardTokens.length, 1);
     }
 
@@ -489,16 +414,10 @@ contract VKatMetadataTest is Test {
 
         vm.stopPrank();
 
-        (
-            address owner,
-            IVKatMetadata.VKatMetaDataV1 memory finalPrefs
-        ) = metadata.getPreferencesOrDefault(tokenId);
+        (address owner, IVKatMetadata.VKatMetaDataV1 memory finalPrefs) = metadata.getPreferencesOrDefault(tokenId);
 
         assertEq(owner, alice);
-        assertEq(
-            uint8(finalPrefs.votingPolicy),
-            uint8(IVKatMetadata.VotingPolicy.ProfitMaximize)
-        );
+        assertEq(uint8(finalPrefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.ProfitMaximize));
         assertEq(finalPrefs.rewardTokens.length, 1);
         assertEq(finalPrefs.rewardTokens[0], token2);
     }
@@ -519,10 +438,7 @@ contract VKatMetadataTest is Test {
 
         vm.stopPrank();
 
-        (
-            address owner,
-            IVKatMetadata.VKatMetaDataV1 memory storedPrefs
-        ) = metadata.getPreferencesOrDefault(tokenId);
+        (address owner, IVKatMetadata.VKatMetaDataV1 memory storedPrefs) = metadata.getPreferencesOrDefault(tokenId);
 
         assertEq(owner, alice);
         assertEq(storedPrefs.rewardTokens.length, 0);
@@ -551,14 +467,10 @@ contract VKatMetadataTest is Test {
         metadata.setPreferences(tokenId, bobPrefs);
         vm.stopPrank();
 
-        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata
-            .getPreferencesOrDefault(tokenId);
+        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata.getPreferencesOrDefault(tokenId);
 
         assertEq(owner, bob);
-        assertEq(
-            uint8(prefs.votingPolicy),
-            uint8(IVKatMetadata.VotingPolicy.ProfitMaximize)
-        );
+        assertEq(uint8(prefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.ProfitMaximize));
 
         // Alice should no longer be able to update
         vm.startPrank(alice);
@@ -586,11 +498,7 @@ contract VKatMetadataTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                DaoUnauthorized.selector,
-                address(dao),
-                address(metadata),
-                address(alice),
-                ADMIN_ROLE
+                DaoUnauthorized.selector, address(dao), address(metadata), address(alice), ADMIN_ROLE
             )
         );
         metadata.upgradeTo(address(newImplementation));
@@ -600,15 +508,9 @@ contract VKatMetadataTest is Test {
 
     // ============= Fuzz Tests =============
 
-    function test_FuzzSetPreferences(
-        uint8 _votingPolicy,
-        uint256 _numTokens,
-        uint256 _seed
-    ) public {
-        vm.assume(
-            _votingPolicy > 0 &&
-                _votingPolicy <= uint8(type(IVKatMetadata.VotingPolicy).max)
-        ); // Valid voting policies
+    function test_FuzzSetPreferences(uint8 _votingPolicy, uint256 _numTokens, uint256 _seed) public {
+        vm.assume(_votingPolicy > 0 && _votingPolicy <= uint8(type(IVKatMetadata.VotingPolicy).max)); // Valid voting
+            // policies
         vm.assume(_numTokens <= 10); // Reasonable number of tokens
 
         // Mint NFT to alice
@@ -634,27 +536,21 @@ contract VKatMetadataTest is Test {
         prefs.rewardTokenWeights = new uint16[](_numTokens);
 
         for (uint256 i = 0; i < _numTokens; i++) {
-            prefs.rewardTokenWeights[i] = uint16(
-                uint256(keccak256(abi.encode(_seed, i))) % 10000
-            );
+            prefs.rewardTokenWeights[i] = uint16(uint256(keccak256(abi.encode(_seed, i))) % 10000);
         }
 
         metadata.setPreferences(tokenId, prefs);
         vm.stopPrank();
 
         // // Verify preferences were set correctly
-        (, IVKatMetadata.VKatMetaDataV1 memory storedPrefs) = metadata
-            .getPreferencesOrDefault(tokenId);
+        (, IVKatMetadata.VKatMetaDataV1 memory storedPrefs) = metadata.getPreferencesOrDefault(tokenId);
 
         assertEq(uint8(storedPrefs.votingPolicy), _votingPolicy);
         assertEq(storedPrefs.rewardTokens.length, _numTokens);
         assertEq(storedPrefs.rewardTokenWeights.length, _numTokens);
     }
 
-    function test_FuzzAddRemoveTokens(
-        uint256 _numOperations,
-        uint256 _seed
-    ) public {
+    function test_FuzzAddRemoveTokens(uint256 _numOperations, uint256 _seed) public {
         vm.assume(_numOperations <= 20);
 
         vm.startPrank(admin);

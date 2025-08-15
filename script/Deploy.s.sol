@@ -1,32 +1,38 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import {Script, console2 as console} from "forge-std/Script.sol";
+import { Script, console2 as console } from "forge-std/Script.sol";
 
-import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-import {DAOFactory, PluginSetupRef, IPluginSetup, DAO, PluginSetupProcessor} from "@aragon/osx/framework/dao/DAOFactory.sol";
-import {PluginRepoFactory} from "@aragon/osx/framework/plugin/repo/PluginRepoFactory.sol";
+import {
+    DAOFactory,
+    PluginSetupRef,
+    IPluginSetup,
+    DAO,
+    PluginSetupProcessor
+} from "@aragon/osx/framework/dao/DAOFactory.sol";
+import { PluginRepoFactory } from "@aragon/osx/framework/plugin/repo/PluginRepoFactory.sol";
 
-import {IDAO} from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
+import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
-import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
-import {Multisig} from "@aragon/multisig-plugin/Multisig.sol";
+import { PluginRepo } from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
+import { Multisig } from "@aragon/multisig-plugin/Multisig.sol";
 
-import {IPlugin} from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
+import { IPlugin } from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
 
-import {ProtocolFactory} from "@aragon/protocol-factory/src/ProtocolFactory.sol";
-import {GaugeVoterSetupV1_4_0 as GaugeVoterSetup} from "@setup/GaugeVoterSetup_v1_4_0.sol";
+import { ProtocolFactory } from "@aragon/protocol-factory/src/ProtocolFactory.sol";
+import { GaugeVoterSetupV1_4_0 as GaugeVoterSetup } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 
-import {AddressGaugeVoter} from "@voting/AddressGaugeVoter.sol";
-import {LinearIncreasingCurve as Curve} from "@curve/LinearIncreasingCurve.sol";
-import {DynamicExitQueue as ExitQueue} from "@queue/DynamicExitQueue.sol";
-import {VotingEscrowV1_2_0 as VotingEscrow} from "@escrow/VotingEscrowIncreasing_v1_2_0.sol";
-import {ClockV1_2_0 as Clock} from "@clock/Clock_v1_2_0.sol";
-import {LockV1_2_0 as Lock} from "@lock/Lock_v1_2_0.sol";
-import {EscrowIVotesAdapter} from "@delegation/EscrowIVotesAdapter.sol";
-import {VeFactory, DeploymentParameters, Deployment, TokenParameters} from "../src/VeFactory.sol";
-import {MockERC20} from "@mocks/MockERC20.sol";
+import { AddressGaugeVoter } from "@voting/AddressGaugeVoter.sol";
+import { LinearIncreasingCurve as Curve } from "@curve/LinearIncreasingCurve.sol";
+import { DynamicExitQueue as ExitQueue } from "@queue/DynamicExitQueue.sol";
+import { VotingEscrowV1_2_0 as VotingEscrow } from "@escrow/VotingEscrowIncreasing_v1_2_0.sol";
+import { ClockV1_2_0 as Clock } from "@clock/Clock_v1_2_0.sol";
+import { LockV1_2_0 as Lock } from "@lock/Lock_v1_2_0.sol";
+import { EscrowIVotesAdapter } from "@delegation/EscrowIVotesAdapter.sol";
+import { VeFactory, DeploymentParameters, Deployment, TokenParameters } from "../src/VeFactory.sol";
+import { MockERC20 } from "@mocks/MockERC20.sol";
 
 contract Deploy is Script {
     // using ProxyLib for address;
@@ -43,9 +49,7 @@ contract Deploy is Script {
 
         DeploymentParameters memory params = getDeploymentParameters();
         // Deploys a dao + all the architecture of ve-governance.
-        VeFactory factory = new VeFactory(
-            params
-        );
+        VeFactory factory = new VeFactory(params);
         factory.deployOnce();
 
         printDeploymentSummary(factory);
@@ -53,10 +57,7 @@ contract Deploy is Script {
         vm.stopBroadcast();
     }
 
-    function getDeploymentParameters()
-        public
-        returns (DeploymentParameters memory parameters)
-    {
+    function getDeploymentParameters() public returns (DeploymentParameters memory parameters) {
         TokenParameters[] memory tokenParameters = getTokenParameters(vm.envOr("MINT_TEST_TOKENS", false));
 
         GaugeVoterSetup gaugeVoterPluginSetup = deployGaugeVoterPluginSetup();
@@ -74,33 +75,20 @@ contract Deploy is Script {
             votingPaused: vm.envBool("VOTING_PAUSED"),
             minDeposit: vm.envUint("MIN_DEPOSIT"),
             // Standard multisig repo
-            multisigPluginRepo: PluginRepo(
-                vm.envAddress("MULTISIG_PLUGIN_REPO_ADDRESS")
-            ),
-            multisigPluginRelease: vm
-                .envUint("MULTISIG_PLUGIN_RELEASE")
-                .toUint8(),
+            multisigPluginRepo: PluginRepo(vm.envAddress("MULTISIG_PLUGIN_REPO_ADDRESS")),
+            multisigPluginRelease: vm.envUint("MULTISIG_PLUGIN_RELEASE").toUint8(),
             multisigPluginBuild: vm.envUint("MULTISIG_PLUGIN_BUILD").toUint16(),
             // Voter plugin setup and ENS
             voterPluginSetup: gaugeVoterPluginSetup,
-            voterEnsSubdomain: vm.envString(
-                "SIMPLE_GAUGE_VOTER_REPO_ENS_SUBDOMAIN"
-            ),
+            voterEnsSubdomain: vm.envString("SIMPLE_GAUGE_VOTER_REPO_ENS_SUBDOMAIN"),
             // OSx addresses
             osxDaoFactory: vm.envAddress("DAO_FACTORY"),
-            pluginSetupProcessor: PluginSetupProcessor(
-                vm.envAddress("PLUGIN_SETUP_PROCESSOR")
-            ),
-            pluginRepoFactory: PluginRepoFactory(
-                vm.envAddress("PLUGIN_REPO_FACTORY")
-            )
+            pluginSetupProcessor: PluginSetupProcessor(vm.envAddress("PLUGIN_SETUP_PROCESSOR")),
+            pluginRepoFactory: PluginRepoFactory(vm.envAddress("PLUGIN_REPO_FACTORY"))
         });
     }
 
-    function deployGaugeVoterPluginSetup()
-        internal
-        returns (GaugeVoterSetup result)
-    {
+    function deployGaugeVoterPluginSetup() internal returns (GaugeVoterSetup result) {
         int256[3] memory coefficients;
         coefficients[0] = vm.envUint("CONSTANT_COEFFICIENT").toInt256();
         coefficients[1] = vm.envUint("LINEAR_COEFFICIENT").toInt256();
@@ -119,39 +107,25 @@ contract Deploy is Script {
         );
     }
 
-    function readMultisigMembers()
-        public
-        view
-        returns (address[] memory result)
-    {
+    function readMultisigMembers() public view returns (address[] memory result) {
         // JSON list of members
         string memory membersFileName = "multisig-members.json";
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/",
-            membersFileName
-        );
+        string memory path = string.concat(vm.projectRoot(), "/", membersFileName);
         string memory strJson = vm.readFile(path);
 
         bool exists = vm.keyExistsJson(strJson, "$.members");
         if (!exists) {
-            revert(
-                "The file pointed by MANAGEMENT_DAO_MEMBERS_FILE_NAME does not contain any members"
-            );
+            revert("The file pointed by MANAGEMENT_DAO_MEMBERS_FILE_NAME does not contain any members");
         }
 
         result = vm.parseJsonAddressArray(strJson, "$.members");
 
         if (result.length == 0) {
-            revert(
-                "The file pointed by MANAGEMENT_DAO_MEMBERS_FILE_NAME needs to contain at least one member"
-            );
+            revert("The file pointed by MANAGEMENT_DAO_MEMBERS_FILE_NAME needs to contain at least one member");
         }
     }
 
-    function getTokenParameters(
-        bool mintTestTokens
-    ) internal returns (TokenParameters[] memory tokenParameters) {
+    function getTokenParameters(bool mintTestTokens) internal returns (TokenParameters[] memory tokenParameters) {
         if (mintTestTokens) {
             // MINT
             console.log("Deploying 2 token contracts (testing)");
@@ -194,7 +168,7 @@ contract Deploy is Script {
     function createTestToken(address[] memory holders) internal returns (address) {
         MockERC20 newToken = new MockERC20();
 
-        for (uint i = 0; i < holders.length; ) {
+        for (uint256 i = 0; i < holders.length;) {
             newToken.mint(holders[i], 5000 ether);
 
             unchecked {
@@ -221,24 +195,15 @@ contract Deploy is Script {
         console.log("- Multisig plugin:", address(deployment.multisigPlugin));
         console.log("");
 
-        for (uint i = 0; i < deployment.gaugeVoterPluginSets.length; ) {
+        for (uint256 i = 0; i < deployment.gaugeVoterPluginSets.length;) {
             console.log("- Using token:", address(deploymentParameters.tokenParameters[i].token));
-            console.log(
-                "  Gauge voter plugin:",
-                address(deployment.gaugeVoterPluginSets[i].plugin)
-            );
+            console.log("  Gauge voter plugin:", address(deployment.gaugeVoterPluginSets[i].plugin));
             console.log("  Curve:", address(deployment.gaugeVoterPluginSets[i].curve));
             console.log("  Exit Queue:", address(deployment.gaugeVoterPluginSets[i].exitQueue));
-            console.log(
-                "  Voting Escrow:",
-                address(deployment.gaugeVoterPluginSets[i].votingEscrow)
-            );
+            console.log("  Voting Escrow:", address(deployment.gaugeVoterPluginSets[i].votingEscrow));
             console.log("  Clock:", address(deployment.gaugeVoterPluginSets[i].clock));
             console.log("  NFT Lock:", address(deployment.gaugeVoterPluginSets[i].nftLock));
-            console.log(
-                "  Escrow IVotes Adapter:",
-                address(deployment.gaugeVoterPluginSets[i].delegationAdapter)
-            );
+            console.log("  Escrow IVotes Adapter:", address(deployment.gaugeVoterPluginSets[i].delegationAdapter));
             console.log("");
 
             unchecked {
@@ -247,10 +212,7 @@ contract Deploy is Script {
         }
 
         console.log("Plugin repositories");
-        console.log(
-            "- Multisig plugin repository (existing):",
-            address(deploymentParameters.multisigPluginRepo)
-        );
+        console.log("- Multisig plugin repository (existing):", address(deploymentParameters.multisigPluginRepo));
         console.log("- Gauge voter plugin repository:", address(deployment.gaugeVoterPluginRepo));
     }
 }

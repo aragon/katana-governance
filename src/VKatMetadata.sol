@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import {IVKatMetadata, IVKat} from "./IVKatMetadata.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { IVKatMetadata, IVKat } from "./IVKatMetadata.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {DaoAuthorizableUpgradeable} from "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
-import {IDAO} from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import { DaoAuthorizableUpgradeable } from
+    "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
+import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
 contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -23,7 +24,10 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
         address _vkat,
         address[] calldata _rewardTokens,
         VKatMetaDataV1 calldata _defaultPreferences
-    ) external initializer {
+    )
+        external
+        initializer
+    {
         __DaoAuthorizableUpgradeable_init(IDAO(_dao));
 
         vKat = IVKat(_vkat);
@@ -62,19 +66,14 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
     }
 
     /// @inheritdoc IVKatMetadata
-    function setDefaultPreferences(
-        VKatMetaDataV1 calldata _preferences
-    ) external auth(ADMIN_ROLE) {
+    function setDefaultPreferences(VKatMetaDataV1 calldata _preferences) external auth(ADMIN_ROLE) {
         _setDefaultPreferences(_preferences);
     }
 
     // ============ User Specific Functions =============
 
     /// @inheritdoc IVKatMetadata
-    function setPreferences(
-        uint256 _tokenId,
-        VKatMetaDataV1 calldata _preferences
-    ) public virtual {
+    function setPreferences(uint256 _tokenId, VKatMetaDataV1 calldata _preferences) public virtual {
         address ownerOf = vKat.ownerOf(_tokenId);
 
         if (msg.sender != ownerOf) {
@@ -99,9 +98,7 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
     ///      a preference for it. Later on, `_tokenId` was burnt. To still allow
     ///      the caller to know what the preferences was for that `_tokenId`,
     ///      we use low level call to fetch owner of the tokenId.
-    function getPreferencesOrDefault(
-        uint256 _tokenId
-    ) external view returns (address, VKatMetaDataV1 memory) {
+    function getPreferencesOrDefault(uint256 _tokenId) external view returns (address, VKatMetaDataV1 memory) {
         VKatMetaDataV1 memory preferences_ = preferences[_tokenId];
         address owner = _getOwner(_tokenId);
 
@@ -113,12 +110,7 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
     }
 
     /// @inheritdoc IVKatMetadata
-    function getDefaultPreferences()
-        public
-        view
-        virtual
-        returns (VKatMetaDataV1 memory)
-    {
+    function getDefaultPreferences() public view virtual returns (VKatMetaDataV1 memory) {
         return defaultPreferences;
     }
 
@@ -128,9 +120,7 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
     }
 
     /// @dev Helper function to validate the new default preferences and set it.
-    function _setDefaultPreferences(
-        VKatMetaDataV1 calldata _preferences
-    ) internal virtual {
+    function _setDefaultPreferences(VKatMetaDataV1 calldata _preferences) internal virtual {
         _validatePreferences(_preferences);
 
         defaultPreferences = _preferences;
@@ -140,17 +130,13 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
     /// @dev Helper function to fetch the token's owner. Most ERC721 reverts
     ///      if token doesn't have an owner, So we use low-level call to avoid revert.
     function _getOwner(uint256 _tokenId) private view returns (address) {
-        (bool success, bytes memory data) = address(vKat).staticcall(
-            abi.encodeCall(IVKat.ownerOf, (_tokenId))
-        );
+        (bool success, bytes memory data) = address(vKat).staticcall(abi.encodeCall(IVKat.ownerOf, (_tokenId)));
         if (success) {
             return abi.decode(data, (address));
         }
     }
 
-    function _validatePreferences(
-        VKatMetaDataV1 calldata _preferences
-    ) internal virtual {
+    function _validatePreferences(VKatMetaDataV1 calldata _preferences) internal virtual {
         // Validate that reward token is already added by admin in a whitelist.
         for (uint256 i = 0; i < _preferences.rewardTokens.length; i++) {
             address token = _preferences.rewardTokens[i];
@@ -161,7 +147,7 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
     }
 
     // =========== Upgrade Related Functions ===========
-    function _authorizeUpgrade(address) internal override auth(ADMIN_ROLE) {}
+    function _authorizeUpgrade(address) internal override auth(ADMIN_ROLE) { }
 
     function implementation() external view returns (address) {
         return _getImplementation();
