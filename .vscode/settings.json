@@ -1,4 +1,7 @@
 {
     "solidity.formatter": "forge",
+    "search.exclude": {
+        "**/node_modules": true
+    },
     "editor.formatOnSave": true
 }

@@ -66,7 +66,7 @@ contract Deploy is Script {
             // Multisig settings
             minApprovals: vm.envUint("MIN_APPROVALS").toUint8(),
             multisigMembers: readMultisigMembers(),
-            multisigMetadata: bytes(vm.envBytes("MULTISIG_METADATA_URI")),
+            multisigMetadata: bytes(vm.envString("MULTISIG_METADATA_URI")),
             // Gauge Voter
             tokenParameters: tokenParameters,
             feePercent: vm.envUint("FEE_PERCENT").toUint16(),
@@ -131,16 +131,11 @@ contract Deploy is Script {
             console.log("Deploying 2 token contracts (testing)");
 
             address[] memory multisigMembers = readMultisigMembers();
-            tokenParameters = new TokenParameters[](2);
+            tokenParameters = new TokenParameters[](1);
             tokenParameters[0] = TokenParameters({
                 token: createTestToken(multisigMembers),
                 veTokenName: "VE Token 1",
                 veTokenSymbol: "veTK1"
-            });
-            tokenParameters[1] = TokenParameters({
-                token: createTestToken(multisigMembers),
-                veTokenName: "VE Token 2",
-                veTokenSymbol: "veTK2"
             });
         } else {
             // USE TOKEN(s)
