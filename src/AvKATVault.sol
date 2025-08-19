@@ -5,6 +5,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 import { VotingEscrow, EscrowIVotesAdapter, GaugeVoter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 import { FixedPointMathLib } from "solmate/utils/FixedPointMathLib.sol";
@@ -14,9 +15,9 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { ERC7540 } from "./abstracts/ERC7540.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IRewardsDistributor } from "./interfaces/IRewardsDistributor.sol";
-import { CompoundStrategy } from "./CompoundStrategy.sol";
+import { AutoCompoundStrategy } from "./AutoCompoundStrategy.sol";
 
-contract AvKATVault is ERC7540, DaoAuthorizable {
+contract AvKATVault is ERC7540, Initializable, DaoAuthorizable {
     using FixedPointMathLib for uint256;
 
     bytes32 public constant VAULT_ADMIN_ROLE = keccak256("VAULT_ADMIN_ROLE");
@@ -30,6 +31,9 @@ contract AvKATVault is ERC7540, DaoAuthorizable {
     /// The single tokenId that this vault will hold and
     /// will contain all users' token ids accumulated.
     uint256 public masterTokenId;
+
+    error MasterTokenNotSet();
+    error TokenNotOwned();
 
     constructor(
         address _dao,
@@ -49,8 +53,28 @@ contract AvKATVault is ERC7540, DaoAuthorizable {
         if (_strategy != address(0)) {
             _setStrategy(_strategy);
         }
+    }
 
-        masterTokenId = escrow.createLock(1e18);
+    /// @dev Deposit/Withdraws can only occur if masterTokenId is set.
+    ///      As long as `initialize` is called, masterTokenId gets set.
+    modifier masterTokenSet() {
+        if (masterTokenId == 0) {
+            revert MasterTokenNotSet();
+        }
+
+        _;
+    }
+
+    /// @dev To create master tokenId, another party must transfer
+    ///      the existing tokenId to this contract and then `initialize`
+    ///      must be called.
+    function initialize(uint256 _tokenId) external initializer {
+        address owner = lockNft.ownerOf(_tokenId);
+        if (owner != address(this)) {
+            revert TokenNotOwned();
+        }
+
+        masterTokenId = _tokenId;
     }
 
     function setStrategy(address _strategy) public auth(VAULT_ADMIN_ROLE) {
@@ -78,7 +102,8 @@ contract AvKATVault is ERC7540, DaoAuthorizable {
         public
         virtual
         override
-        returns (uint256 requestId)
+        masterTokenSet
+        returns (uint256)
     {
         // Take `owner`'s shares back.
         SafeERC20.safeTransferFrom(IERC20(asset()), owner, address(this), shares);
@@ -105,6 +130,8 @@ contract AvKATVault is ERC7540, DaoAuthorizable {
         escrow.beginWithdrawal(newTokenId);
 
         emit RedeemRequest(controller, owner, REQUEST_ID, msg.sender, shares);
+
+        return REQUEST_ID;
     }
 
     function pendingRedeemRequest(uint256, address controller) public view returns (uint256 pendingShares) {
@@ -138,6 +165,7 @@ contract AvKATVault is ERC7540, DaoAuthorizable {
         public
         virtual
         override
+        masterTokenSet
         controllerAllowed(_controller)
         returns (uint256 assets)
     {
@@ -178,6 +206,7 @@ contract AvKATVault is ERC7540, DaoAuthorizable {
         public
         virtual
         override
+        masterTokenSet
         controllerAllowed(_controller)
         returns (uint256 shares)
     {
@@ -210,7 +239,7 @@ contract AvKATVault is ERC7540, DaoAuthorizable {
 
     /// @dev Transfer `assets` from caller to Vault.
     ///      User must have approved `Vault` for this.
-    function deposit(uint256 assets, address receiver) public virtual override returns (uint256) {
+    function deposit(uint256 assets, address receiver) public virtual override masterTokenSet returns (uint256) {
         // Transfers `assets` from caller to this vault
         // and mints shares as well.
         super.deposit(assets, receiver);
@@ -226,10 +255,12 @@ contract AvKATVault is ERC7540, DaoAuthorizable {
     /// @dev If `tokenId` position is already created on escrow,
     ///      this allows to still deposit which will mint the shares
     ///      depending on the amount that tokenId lock was created on escrow.
-    function depositToken(uint256 tokenId, address receiver) public virtual returns (uint256) {
+    function depositToken(uint256 tokenId, address receiver) public virtual masterTokenSet returns (uint256) {
         uint256 assets = escrow.locked(tokenId).amount;
 
+        // If user doesn't hold veNFT, this will fail.
         lockNft.transferFrom(msg.sender, address(this), tokenId);
+
         escrow.merge(tokenId, masterTokenId);
 
         uint256 shares = convertToShares(assets);
@@ -266,8 +297,13 @@ contract AvKATVault is ERC7540, DaoAuthorizable {
     }
 
     /*//////////////////////////////////////////////////////////////
-                       Helper Functions
+                       AvKatVault Functions
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice The total pending assets that has been requested but not yet redeemed.
+    function totalPendingRedeemAssets() public view returns (uint256) {
+        return _totalPendingRedeemAssets;
+    }
 
     /// @dev Allows an admin to set a new strategy contract.
     ///      It automatically undelegates from old strategy

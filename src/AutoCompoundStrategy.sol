@@ -14,9 +14,9 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { ERC7540 } from "./abstracts/ERC7540.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IRewardsDistributor } from "./interfaces/IRewardsDistributor.sol";
-import { AvKATVault } from "./Vault.sol";
+import { AvKATVault } from "./AvKATVault.sol";
 
-contract CompoundStrategy {
+contract AutoCompoundStrategy {
     GaugeVoter public voter;
     IRewardsDistributor public rewardDistributor;
     AvKATVault public vault;
