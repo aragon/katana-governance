@@ -17,8 +17,10 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 abstract contract ERC7540 is IERC7540, ERC4626 {
     uint256 internal constant REQUEST_ID = 0;
+    uint256 internal constant MAX_REQUESTS = 3;
 
-    mapping(address => RedemptionRequest) internal _pendingRedemption;
+    mapping(address => RedemptionRequest[]) internal _pendingRedemption;
+
     uint256 internal _totalPendingRedeemAssets;
     mapping(address => mapping(address => bool)) public isOperator;
 

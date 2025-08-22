@@ -39,4 +39,5 @@ interface IERC7540 is IERC7540Operator, IERC7540Redeem {
     error NotClaimableYet();
     error CannotSetCallerAsOperator();
     error NotAsyncable();
+    error TooManyRequests();
 }

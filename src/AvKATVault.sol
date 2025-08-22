@@ -22,6 +22,13 @@ contract AvKATVault is ERC7540, Initializable, DaoAuthorizable {
 
     bytes32 public constant VAULT_ADMIN_ROLE = keccak256("VAULT_ADMIN_ROLE");
 
+    struct ClaimableRequests {
+        RedemptionRequest[] requests;
+        uint256[] foundIndices;
+        uint256 cumulativeShares;
+        uint256 cumulativeAssets;
+    }
+
     /// Addresses required for operations.
     EscrowIVotesAdapter public ivotesAdapter;
     VotingEscrow public escrow;
@@ -95,9 +102,9 @@ contract AvKATVault is ERC7540, Initializable, DaoAuthorizable {
     //////////////////////////////////////////////////////////////*/
 
     function requestRedeem(
-        uint256 shares,
-        address controller,
-        address owner
+        uint256 _shares,
+        address _controller,
+        address _owner
     )
         public
         virtual
@@ -105,52 +112,50 @@ contract AvKATVault is ERC7540, Initializable, DaoAuthorizable {
         masterTokenSet
         returns (uint256)
     {
-        // Take `owner`'s shares back.
-        SafeERC20.safeTransferFrom(IERC20(asset()), owner, address(this), shares);
+        RedemptionRequest[] storage requests = _pendingRedemption[_controller];
 
-        uint256 assets = convertToAssets(shares);
+        // Allow up to `MAX_REQUESTS` at the same time. Once redeemed, the list
+        // of requests decreases, allowing user to request more.
+        if (requests.length > MAX_REQUESTS) {
+            revert TooManyRequests();
+        }
 
-        // Split splits `masterTokenId` into `newTokenId` with amounts such as:
-        // masterTokenId => current masterTokenId ammount - assets
+        // Take owner's shares back.
+        transferFrom(_owner, address(this), _shares);
+
+        uint256 assets = convertToAssets(_shares);
+
+        // Splits `masterTokenId` into `newTokenId` with amounts:
+        // masterTokenId => reduced by `assets`.
         // newTokenId => assets
         uint256 newTokenId = escrow.split(masterTokenId, assets);
 
-        _pendingRedemption[controller] = RedemptionRequest({
-            assets: assets,
-            shares: shares,
-            tokenId: newTokenId,
-            // TODO: add the time after which it can be withdrawn.(use queue)
-            claimableTimestamp: uint32(block.timestamp) + uint32(escrow.locked(newTokenId).start)
-        });
+        requests.push(
+            RedemptionRequest({
+                assets: assets,
+                shares: _shares,
+                tokenId: newTokenId,
+                // TODO: add the time after which it can be withdrawn.(use queue)
+                claimableTimestamp: uint32(block.timestamp) + uint32(escrow.locked(newTokenId).start)
+            })
+        );
 
         _totalPendingRedeemAssets += assets;
 
-        // masterTokenId now contains its total amount - assets
         // start a withdrawal process.
         escrow.beginWithdrawal(newTokenId);
 
-        emit RedeemRequest(controller, owner, REQUEST_ID, msg.sender, shares);
+        emit RedeemRequest(_controller, _owner, REQUEST_ID, msg.sender, _shares);
 
         return REQUEST_ID;
     }
 
-    function pendingRedeemRequest(uint256, address controller) public view returns (uint256 pendingShares) {
-        RedemptionRequest memory request = _pendingRedemption[controller];
-
-        if (request.claimableTimestamp > block.timestamp) {
-            return request.shares;
-        }
-
-        return 0;
+    function pendingRedeemRequest(uint256, address _controller) public view returns (uint256) {
+        return _aggregate(_controller, _getPendingShares);
     }
 
-    function claimableRedeemRequest(uint256, address controller) public view returns (uint256 claimableShares) {
-        RedemptionRequest memory request = _pendingRedemption[controller];
-        if (request.claimableTimestamp <= block.timestamp && request.shares > 0) {
-            return request.shares;
-        }
-
-        return 0;
+    function claimableRedeemRequest(uint256, address _controller) public view returns (uint256) {
+        return _aggregate(_controller, _getClaimableShares);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -173,29 +178,34 @@ contract AvKATVault is ERC7540, Initializable, DaoAuthorizable {
             revert ZeroAmount();
         }
 
-        RedemptionRequest storage request = _pendingRedemption[_controller];
+        ClaimableRequests memory claimable = getRedeemableRequestsUpTo(_shares, _controller);
 
-        if (block.timestamp > request.claimableTimestamp) {
+        uint256 len = claimable.requests.length;
+        if (len == 0) {
             revert NotClaimableYet();
         }
 
-        // Ensure that we use the same ratio as at the time of making this request in requestRedeem.
-        // This is because during requestRedeem and redeem, share price per asset could change.
-        assets = _shares.mulDivDown(request.assets, request.shares);
-        uint256 assetsUp = _shares.mulDivUp(request.assets, request.shares);
+        RedemptionRequest[] storage allRequests = _pendingRedemption[_controller];
 
-        request.assets = request.assets > assetsUp ? request.assets - assetsUp : 0;
-        request.shares -= _shares;
+        _totalPendingRedeemAssets -= claimable.cumulativeAssets;
 
-        _totalPendingRedeemAssets -= assets;
+        // Process all requests that are claimable and
+        // clear these requests from storage array.
+        for (uint256 i = 0; i < len; i++) {
+            RedemptionRequest memory request = claimable.requests[i];
 
-        // This transfers back amount to this contract
-        escrow.withdraw(request.tokenId);
+            // This transfers back assets from escrow to this contract.
+            escrow.withdraw(request.tokenId);
 
-        // transfer back the assets to the user.
-        SafeERC20.safeTransferFrom(IERC20(asset()), address(this), _receiver, assets);
+            // remove the request from the storage array as we already processed it.
+            allRequests[claimable.foundIndices[i]] = allRequests[allRequests.length - 1];
+            allRequests.pop();
+        }
 
-        emit Withdraw(msg.sender, _receiver, _controller, assets, _shares);
+        // burns `cumulativeShares` and transfers `cumulativeAssets` back to user.
+        _withdraw(msg.sender, _receiver, _controller, claimable.cumulativeAssets, claimable.cumulativeShares);
+
+        return claimable.cumulativeAssets;
     }
 
     function withdraw(
@@ -210,31 +220,38 @@ contract AvKATVault is ERC7540, Initializable, DaoAuthorizable {
         controllerAllowed(_controller)
         returns (uint256 shares)
     {
-        RedemptionRequest storage request = _pendingRedemption[_controller];
-        if (block.timestamp > request.claimableTimestamp) {
+        if (_assets == 0) {
+            revert ZeroAmount();
+        }
+
+        ClaimableRequests memory claimable = getWithdrawableRequestsUpTo(_assets, _controller);
+
+        uint256 len = claimable.requests.length;
+        if (len == 0) {
             revert NotClaimableYet();
         }
 
-        // Claiming partially introduces precision loss. The user therefore
-        // receives a rounded down amount, while the claimable balance is
-        // reduced by a rounded up amount.
-        shares = _assets.mulDivDown(request.shares, request.assets);
-        uint256 sharesUp = _assets.mulDivUp(request.shares, request.assets);
+        RedemptionRequest[] storage allRequests = _pendingRedemption[_controller];
 
-        request.assets -= _assets;
-        request.shares = request.shares > sharesUp ? request.shares - sharesUp : 0;
+        _totalPendingRedeemAssets -= claimable.cumulativeAssets;
 
-        _totalPendingRedeemAssets -= _assets;
+        // Process all requests that are claimable and
+        // clear these requests from storage array.
+        for (uint256 i = 0; i < len; i++) {
+            RedemptionRequest memory request = claimable.requests[i];
 
-        // This transfers back amount to this contract
-        escrow.withdraw(request.tokenId);
+            // This transfers back assets from escrow to this contract.
+            escrow.withdraw(request.tokenId);
 
-        emit Withdraw(msg.sender, _receiver, _controller, _assets, shares);
+            // remove the request from the storage array as we already processed it.
+            allRequests[claimable.foundIndices[i]] = allRequests[allRequests.length - 1];
+            allRequests.pop();
+        }
 
-        // transfer back the assets to the user.
-        SafeERC20.safeTransferFrom(IERC20(asset()), address(this), _receiver, _assets);
+        // burns `cumulativeShares` and transfers `cumulativeAssets` back to user.
+        _withdraw(msg.sender, _receiver, _controller, claimable.cumulativeAssets, claimable.cumulativeShares);
 
-        emit Withdraw(msg.sender, _receiver, _controller, _assets, shares);
+        return claimable.cumulativeShares;
     }
 
     /// @dev Transfer `assets` from caller to Vault.
@@ -270,21 +287,11 @@ contract AvKATVault is ERC7540, Initializable, DaoAuthorizable {
     }
 
     function maxWithdraw(address _controller) public view virtual override returns (uint256) {
-        RedemptionRequest memory request = _pendingRedemption[_controller];
-        if (request.claimableTimestamp <= block.timestamp) {
-            return request.assets;
-        }
-
-        return 0;
+        return _aggregate(_controller, _getClaimableAssets);
     }
 
     function maxRedeem(address _controller) public view virtual override returns (uint256) {
-        RedemptionRequest memory request = _pendingRedemption[_controller];
-        if (request.claimableTimestamp <= block.timestamp) {
-            return request.shares;
-        }
-
-        return 0;
+        return _aggregate(_controller, _getClaimableShares);
     }
 
     // Preview functions always revert for async flows
@@ -297,12 +304,122 @@ contract AvKATVault is ERC7540, Initializable, DaoAuthorizable {
     }
 
     /*//////////////////////////////////////////////////////////////
-                       AvKatVault Functions
+                       AvKatVault Public Functions
     //////////////////////////////////////////////////////////////*/
+
+    // Public functions
+    function getRedeemableRequestsUpTo(
+        uint256 _shares,
+        address _controller
+    )
+        public
+        view
+        returns (ClaimableRequests memory result)
+    {
+        return _getClaimableRequestsUpTo(_shares, _controller, _getShares);
+    }
+
+    function getWithdrawableRequestsUpTo(
+        uint256 _assets,
+        address _controller
+    )
+        public
+        view
+        returns (ClaimableRequests memory result)
+    {
+        return _getClaimableRequestsUpTo(_assets, _controller, _getAssets);
+    }
 
     /// @notice The total pending assets that has been requested but not yet redeemed.
     function totalPendingRedeemAssets() public view returns (uint256) {
         return _totalPendingRedeemAssets;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                       AvKatVault Internal/Private Functions
+    //////////////////////////////////////////////////////////////*/
+
+    function _getClaimableRequestsUpTo(
+        uint256 _amount,
+        address _controller,
+        function(RedemptionRequest memory) internal pure returns (uint256) _getAmount
+    )
+        private
+        view
+        returns (ClaimableRequests memory result)
+    {
+        RedemptionRequest[] storage requests = _pendingRedemption[_controller];
+
+        uint256 len = requests.length;
+        result.requests = new RedemptionRequest[](len);
+        result.foundIndices = new uint256[](len);
+
+        uint256 count;
+        uint256 cumulative;
+
+        for (uint256 i = 0; i < len; i++) {
+            RedemptionRequest memory request = requests[i];
+
+            if (request.claimableTimestamp > block.timestamp) {
+                continue;
+            }
+
+            uint256 requestAmount = _getAmount(request);
+
+            if (cumulative + requestAmount <= _amount) {
+                result.requests[count] = request;
+                result.foundIndices[count] = i;
+                result.cumulativeShares += request.shares;
+                result.cumulativeAssets += request.assets;
+
+                cumulative += requestAmount;
+                count++;
+            }
+        }
+
+        // Resize arrays to actual count
+        assembly {
+            mstore(mload(result), count) // result.requests.length = count
+            mstore(mload(add(result, 0x20)), count) // result.indices.length = count
+        }
+    }
+
+    function _aggregate(
+        address _controller,
+        function(RedemptionRequest memory) internal view returns (uint256) _getValue
+    )
+        private
+        view
+        returns (uint256)
+    {
+        RedemptionRequest[] memory requests = _pendingRedemption[_controller];
+
+        uint256 total;
+        for (uint256 i = 0; i < requests.length; i++) {
+            total += _getValue(requests[i]);
+        }
+
+        return total;
+    }
+
+    function _getPendingShares(RedemptionRequest memory request) private view returns (uint256) {
+        return request.claimableTimestamp > block.timestamp ? request.shares : 0;
+    }
+
+    function _getClaimableShares(RedemptionRequest memory request) private view returns (uint256) {
+        return request.claimableTimestamp <= block.timestamp ? request.shares : 0;
+    }
+
+    function _getClaimableAssets(RedemptionRequest memory request) private view returns (uint256) {
+        return request.claimableTimestamp <= block.timestamp ? request.assets : 0;
+    }
+
+    function _getShares(RedemptionRequest memory request) private pure returns (uint256) {
+        return request.shares;
+    }
+
+    function _getAssets(RedemptionRequest memory request) private pure returns (uint256) {
+        return request.assets;
     }
 
     /// @dev Allows an admin to set a new strategy contract.
