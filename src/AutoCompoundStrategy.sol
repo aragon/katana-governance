@@ -11,7 +11,6 @@ import { FixedPointMathLib } from "solmate/utils/FixedPointMathLib.sol";
 import { DaoAuthorizable } from "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizable.sol";
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ERC7540 } from "./abstracts/ERC7540.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IRewardsDistributor } from "./interfaces/IRewardsDistributor.sol";
 import { AvKATVault } from "./AvKATVault.sol";
