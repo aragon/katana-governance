@@ -23,8 +23,9 @@
 @voting/=lib/ve-governance/src/voting/
 @ve/=lib/ve-governance/src/
 
-lib/protocol-factory/:@aragon/osx/=lib/protocol-factory/lib/osx/packages/contracts/src/
-lib/ve-governance/:@aragon/osx/=lib/ve-governance/lib/osx/packages/contracts/src/
+@aragon/osx-commons-contracts/=lib/osx-commons/contracts/
+
+
 @aragon/osx/=lib/ve-governance/lib/osx/packages/contracts/src/
 
 
