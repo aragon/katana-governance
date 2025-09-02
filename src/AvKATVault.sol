@@ -20,6 +20,7 @@ contract AvKATVault is ERC4626, Initializable, DaoAuthorizable {
     using FixedPointMathLib for uint256;
 
     bytes32 public constant VAULT_ADMIN_ROLE = keccak256("VAULT_ADMIN_ROLE");
+    bytes32 public constant SWEEPER_ROLE = keccak256("SWEEPER_ROLE");
 
     /// Addresses required for operations.
     EscrowIVotesAdapter public ivotesAdapter;
@@ -31,7 +32,11 @@ contract AvKATVault is ERC4626, Initializable, DaoAuthorizable {
     /// will contain all users' token ids accumulated.
     uint256 public masterTokenId;
 
+    event StrategySet(address strategy);
+    event Sweep(uint256 tokenId, address receiver);
+
     error MasterTokenNotSet();
+    error CannotTransferMasterToken();
     error TokenNotOwned();
 
     constructor(
@@ -138,6 +143,9 @@ contract AvKATVault is ERC4626, Initializable, DaoAuthorizable {
         uint256 assets = escrow.locked(tokenId).amount;
 
         // If user doesn't hold veNFT, this will fail.
+        // No need to use safe transfer as receiver here is always this contract
+        // which we know it can anyways handle transfering the tokens to other users.
+        // See `_withdraw`.
         lockNft.transferFrom(msg.sender, address(this), tokenId);
 
         escrow.merge(tokenId, masterTokenId);
@@ -152,6 +160,17 @@ contract AvKATVault is ERC4626, Initializable, DaoAuthorizable {
                        AvKatVault Functions
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice send veNFT mistakenly transferred to `_receiver`.
+    function recoverNFT(uint256 _tokenId, address _receiver) external auth(SWEEPER_ROLE) {
+        if (_tokenId == masterTokenId) {
+            revert CannotTransferMasterToken();
+        }
+
+        lockNft.safeTransferFrom(address(this), _receiver, _tokenId);
+
+        emit Sweep(_tokenId, _receiver);
+    }
+
     /// @dev Allows an admin to set a new strategy contract.
     ///      It automatically undelegates from old strategy
     ///      and delegates to new one.
@@ -165,5 +184,7 @@ contract AvKATVault is ERC4626, Initializable, DaoAuthorizable {
         lockNft.setApprovalForAll(_strategy, true);
 
         strategy = _strategy;
+
+        emit StrategySet(_strategy);
     }
 }

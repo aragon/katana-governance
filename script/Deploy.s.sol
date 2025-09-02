@@ -31,7 +31,14 @@ import { VotingEscrowV1_2_0 as VotingEscrow } from "@escrow/VotingEscrowIncreasi
 import { ClockV1_2_0 as Clock } from "@clock/Clock_v1_2_0.sol";
 import { LockV1_2_0 as Lock } from "@lock/Lock_v1_2_0.sol";
 import { EscrowIVotesAdapter } from "@delegation/EscrowIVotesAdapter.sol";
-import { VeFactory, DeploymentParameters, Deployment, TokenParameters } from "../src/VeFactory.sol";
+// import { VeFactory, DeploymentParameters, Deployment, TokenParameters } from "../src/VeFactory.sol";
+import {
+    GaugesDaoFactoryV1_4_0 as VeGovernanceFactory,
+    Deployment,
+    DeploymentParameters,
+    TokenParameters
+} from "@factory/GaugesDaoFactory_v1_4_0.sol";
+
 import { MockERC20 } from "@mocks/MockERC20.sol";
 
 contract Deploy is Script {
@@ -48,8 +55,9 @@ contract Deploy is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         DeploymentParameters memory params = getDeploymentParameters();
+
         // Deploys a dao + all the architecture of ve-governance.
-        VeFactory factory = new VeFactory(params);
+        VeGovernanceFactory factory = new VeGovernanceFactory(params);
         factory.deployOnce();
 
         printDeploymentSummary(factory);
@@ -174,7 +182,7 @@ contract Deploy is Script {
         return address(newToken);
     }
 
-    function printDeploymentSummary(VeFactory factory) internal view {
+    function printDeploymentSummary(VeGovernanceFactory factory) internal view {
         DeploymentParameters memory deploymentParameters = factory.getDeploymentParameters();
         Deployment memory deployment = factory.getDeployment();
 
