@@ -67,7 +67,6 @@ contract Deploy is Script {
 
     function getDeploymentParameters() public returns (DeploymentParameters memory parameters) {
         TokenParameters[] memory tokenParameters = getTokenParameters(vm.envOr("MINT_TEST_TOKENS", false));
-
         GaugeVoterSetup gaugeVoterPluginSetup = deployGaugeVoterPluginSetup();
 
         parameters = DeploymentParameters({

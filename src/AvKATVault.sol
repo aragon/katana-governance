@@ -6,6 +6,7 @@ import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC2
 import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
 import { VotingEscrow, EscrowIVotesAdapter, GaugeVoter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 import { FixedPointMathLib } from "solmate/utils/FixedPointMathLib.sol";
@@ -15,8 +16,9 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IRewardsDistributor } from "./interfaces/IRewardsDistributor.sol";
 import { AutoCompoundStrategy } from "./AutoCompoundStrategy.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
-contract AvKATVault is ERC4626, Initializable, DaoAuthorizable {
+contract AvKATVault is ERC4626, Initializable, ERC721Holder, DaoAuthorizable {
     using FixedPointMathLib for uint256;
 
     bytes32 public constant VAULT_ADMIN_ROLE = keccak256("VAULT_ADMIN_ROLE");
@@ -34,6 +36,7 @@ contract AvKATVault is ERC4626, Initializable, DaoAuthorizable {
 
     event StrategySet(address strategy);
     event Sweep(uint256 tokenId, address receiver);
+    event TokenIdWithdrawn(uint256 tokenId, address receiver);
 
     error MasterTokenNotSet();
     error CannotTransferMasterToken();
@@ -48,7 +51,7 @@ contract AvKATVault is ERC4626, Initializable, DaoAuthorizable {
         string memory _symbol
     )
         ERC4626(IERC20(_asset))
-        ERC20("name", "symbol")
+        ERC20(_name, _symbol)
         DaoAuthorizable(IDAO(_dao))
     {
         ivotesAdapter = EscrowIVotesAdapter(_ivotesAdapter);
@@ -72,7 +75,9 @@ contract AvKATVault is ERC4626, Initializable, DaoAuthorizable {
 
     /// @dev To create master tokenId, another party must transfer
     ///      the existing tokenId to this contract and then `initialize`
-    ///      must be called.
+    ///      must be called. This is needed as at the deployment time,
+    ///      we don't know the address of `AvKATVault` contract, hence
+    ///      we can't transfer the token before deployment.
     function initialize(uint256 _tokenId) external initializer {
         address owner = lockNft.ownerOf(_tokenId);
         if (owner != address(this)) {
@@ -80,6 +85,13 @@ contract AvKATVault is ERC4626, Initializable, DaoAuthorizable {
         }
 
         masterTokenId = _tokenId;
+
+        // After initialize is called, totalAssets() will reflect the amount
+        // of `masterTokenId`, but totalSupply will be 0 and the first depositor
+        // will get 0 shares unless provided deposit is not big enough to cause
+        // shares > 0. To avoid consistency issues, we mint the according shares
+        // to address(1) to increase total supply.
+        _mint(address(1), escrow.locked(_tokenId).amount);
     }
 
     function setStrategy(address _strategy) public auth(VAULT_ADMIN_ROLE) {
@@ -110,55 +122,72 @@ contract AvKATVault is ERC4626, Initializable, DaoAuthorizable {
         virtual
         override
     {
-        if (_caller != _owner) {
-            _spendAllowance(_owner, _caller, _shares);
-        }
+        // if (_caller != _owner) {
+        //     _spendAllowance(_owner, _caller, _shares);
+        // }
 
         _burn(_owner, _shares);
         uint256 newTokenId = escrow.split(masterTokenId, _assets);
         lockNft.transferFrom(address(this), _receiver, newTokenId);
 
         emit Withdraw(_caller, _receiver, _owner, _assets, _shares);
+
+        emit TokenIdWithdrawn(newTokenId, _receiver);
     }
 
     /// @dev Transfer `assets` from caller to Vault.
     ///      User must have approved `Vault` for this.
-    function deposit(uint256 assets, address receiver) public virtual override masterTokenSet returns (uint256) {
-        // Transfers `assets` from caller to this vault
-        // and mints shares as well.
-        super.deposit(assets, receiver);
+    function _deposit(
+        address _caller,
+        address _receiver,
+        uint256 _assets,
+        uint256 _shares
+    )
+        internal
+        virtual
+        override
+        masterTokenSet
+    {
+        super._deposit(_caller, _receiver, _assets, _shares);
+
+        IERC20(asset()).approve(address(escrow), _assets);
 
         // creates a lock which transfers assets to escrow.
-        uint256 tokenId = escrow.createLock(assets);
+        uint256 tokenId = escrow.createLock(_assets);
 
         // merge newly created token to Vault's
         // single tokenid for accumulation.
         escrow.merge(tokenId, masterTokenId);
     }
 
-    /// @dev If `tokenId` position is already created on escrow,
-    ///      this allows to still deposit which will mint the shares
-    ///      depending on the amount that tokenId lock was created on escrow.
-    function depositToken(uint256 tokenId, address receiver) public virtual masterTokenSet returns (uint256) {
-        uint256 assets = escrow.locked(tokenId).amount;
-
-        // If user doesn't hold veNFT, this will fail.
-        // No need to use safe transfer as receiver here is always this contract
-        // which we know it can anyways handle transfering the tokens to other users.
-        // See `_withdraw`.
-        lockNft.transferFrom(msg.sender, address(this), tokenId);
-
-        escrow.merge(tokenId, masterTokenId);
-
-        uint256 shares = convertToShares(assets);
-        _mint(receiver, shares);
-
-        emit Deposit(msg.sender, receiver, assets, shares);
-    }
-
     /*//////////////////////////////////////////////////////////////
                        AvKatVault Functions
     //////////////////////////////////////////////////////////////*/
+
+    /// @dev If `tokenId` position is already created on escrow,
+    ///      this allows to still deposit which will mint the shares
+    ///      depending on the amount that tokenId lock was created on escrow.
+    function depositToken(uint256 _tokenId, address _receiver) public virtual masterTokenSet returns (uint256) {
+        uint256 assets = escrow.locked(_tokenId).amount;
+
+        require(assets <= maxDeposit(_receiver), "ERC4626: deposit more than max");
+        uint256 shares = previewDeposit(assets);
+
+        // Reverts if the caller does not own a veNFT.
+        // Safe transfer is unnecessary since `_receiver` is always this contract,
+        // which we know can correctly forward tokens to users (see `_withdraw`).
+        // If `amount` on tokenId is 0, either merge or withdrawal occured in which case
+        // `transferFrom` will anyways fail.
+        lockNft.transferFrom(msg.sender, address(this), _tokenId);
+
+        escrow.merge(_tokenId, masterTokenId);
+
+        _mint(_receiver, shares);
+
+        emit Deposit(msg.sender, _receiver, assets, shares);
+
+        return shares;
+    }
 
     /// @notice send veNFT mistakenly transferred to `_receiver`.
     function recoverNFT(uint256 _tokenId, address _receiver) external auth(SWEEPER_ROLE) {

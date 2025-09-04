@@ -2,16 +2,20 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
-import "../src/VKatMetadata.sol";
-import "../src/interfaces/IVKatMetadata.sol";
-import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "../../src/VKatMetadata.sol";
+import "../../src/interfaces/IVKatMetadata.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+
 import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
 
-import { MockDAO } from "./mocks/MockDAO.sol";
-import { MockVKatERC721 } from "./mocks/MockVKatERC721.sol";
+import { MockDAO } from "../mocks/MockDAO.sol";
+import { MockVKatERC721 } from "../mocks/MockVKatERC721.sol";
 import { MockERC20 } from "@mocks/MockERC20.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/Executor.sol";
+import { AvKATVault } from "../../src/AvKATVault.sol";
+import { PermissionManager } from "@aragon/osx/core/permission/PermissionManager.sol";
 
 import { ProtocolFactoryBuilder } from "@aragon/protocol-factory/test/helpers/ProtocolFactoryBuilder.sol";
 import { ProtocolFactory } from "@aragon/protocol-factory/src/ProtocolFactory.sol";
@@ -38,14 +42,36 @@ import { ClockV1_2_0 as Clock } from "@clock/Clock_v1_2_0.sol";
 import { LockV1_2_0 as Lock } from "@lock/Lock_v1_2_0.sol";
 import { EscrowIVotesAdapter } from "@delegation/EscrowIVotesAdapter.sol";
 
-contract Base is Test {
+contract Base is ERC721Holder, Test {
+    // Deployment Objects
     ProtocolFactoryBuilder builder;
     ProtocolFactory.Deployment internal osxDeployment;
     Deployment internal veDeployment;
 
+    // ve contracts
     DAO internal dao;
-    address internal escrowIVotesAdapter;
+    address internal ivotesAdapter;
+    VotingEscrow internal escrow;
     Multisig internal multisig;
+    Lock internal lockNft;
+
+    // kat contracts
+    MockERC20 internal token;
+    uint256 internal masterTokenId;
+    AvKATVault public vault;
+    uint8 internal decimals;
+
+    address public alice = address(3);
+    address public bob = address(4);
+    address public charlie = address(5);
+
+    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
+
+    event Withdraw(
+        address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares
+    );
+
+    event TokenIdWithdrawn(uint256 tokenId, address receiver);
 
     function setUp() public virtual {
         _deployOsx();
@@ -53,6 +79,9 @@ contract Base is Test {
 
         vm.warp(block.timestamp + 20);
         vm.roll(block.number + 20);
+
+        _deployVault();
+        vault.initialize(masterTokenId);
     }
 
     function _deployOsx() internal {
@@ -116,8 +145,11 @@ contract Base is Test {
 
         Deployment memory deps = veGovFactory.getDeployment();
         dao = deps.dao;
-        escrowIVotesAdapter = address(deps.gaugeVoterPluginSets[0].delegationAdapter);
+        ivotesAdapter = address(deps.gaugeVoterPluginSets[0].delegationAdapter);
+        escrow = deps.gaugeVoterPluginSets[0].votingEscrow;
+        lockNft = deps.gaugeVoterPluginSets[0].nftLock;
         multisig = Multisig(address(deps.multisigPlugin));
+        token = MockERC20(tokenParameters[0].token);
     }
 
     function createTestToken(address[] memory holders) internal returns (address) {
@@ -127,13 +159,61 @@ contract Base is Test {
             newToken.mint(holders[i], 5000 ether);
         }
 
+        decimals = newToken.decimals();
+
         return address(newToken);
     }
 
-    function _createProposal(address _to, bytes memory _data) internal {
-        Action[] memory actions = new Action[](1);
-        actions[0].to = _to;
-        actions[0].data = _data;
-        multisig.createProposal("", actions, 0, true, true, 0, uint64(block.timestamp + 1 days));
+    function _createProposal(Action[] memory _actions) internal {
+        multisig.createProposal("", _actions, 0, true, true, 0, uint64(block.timestamp + 1 days));
+    }
+
+    function _deployVault() internal {
+        vault = new AvKATVault(
+            address(dao), address(ivotesAdapter), address(0), address(escrow.token()), "Autocompounding veKAT", "avKAT"
+        );
+
+        Action[] memory actions = new Action[](4);
+        actions[0].to = address(dao);
+        actions[0].data =
+            abi.encodeCall(PermissionManager.grant, (address(vault), address(this), vault.VAULT_ADMIN_ROLE()));
+
+        actions[1].to = address(dao);
+        actions[1].data = abi.encodeCall(PermissionManager.grant, (address(vault), address(this), vault.SWEEPER_ROLE()));
+
+        actions[2].to = address(dao);
+        actions[2].data =
+            abi.encodeCall(PermissionManager.grant, (address(lockNft), address(this), lockNft.LOCK_ADMIN_ROLE()));
+
+        actions[3].to = address(dao);
+        actions[3].data =
+            abi.encodeCall(PermissionManager.grant, (address(escrow), address(this), escrow.ESCROW_ADMIN_ROLE()));
+
+        _createProposal(actions);
+
+        lockNft.setWhitelisted(address(vault), true);
+        escrow.enableSplit();
+
+        token.approve(address(escrow), 100 * 10 ** 18);
+        masterTokenId = escrow.createLock(100 * 10 ** 18);
+        lockNft.transferFrom(address(this), address(vault), masterTokenId);
+    }
+
+    function _mintAndApprove(address _account, address _who, uint256 _amount) internal {
+        token.mint(_account, _amount);
+        vm.prank(_account);
+        token.approve(_who, _amount);
+    }
+
+    function _parseToken(uint256 _amount) internal view returns (uint256) {
+        return _amount * 10 ** decimals;
+    }
+
+    function _increaseTotalAsset(uint256 _amount) internal {
+        _mintAndApprove(address(this), address(escrow), _amount);
+        uint256 tokenId = escrow.createLockFor(_amount, address(vault));
+        vm.startPrank(address(vault));
+        escrow.merge(tokenId, vault.masterTokenId());
+        vm.stopPrank();
     }
 }
