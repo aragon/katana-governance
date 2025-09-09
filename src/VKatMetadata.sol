@@ -14,7 +14,7 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
-    mapping(uint256 => VKatMetaDataV1) private preferences;
+    mapping(address => VKatMetaDataV1) private preferences;
     EnumerableSet.AddressSet internal rewardTokens;
     VKatMetaDataV1 private defaultPreferences;
     IVKat public vKat;
@@ -73,17 +73,11 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
     // ============ User Specific Functions =============
 
     /// @inheritdoc IVKatMetadata
-    function setPreferences(uint256 _tokenId, VKatMetaDataV1 calldata _preferences) public virtual {
-        address ownerOf = vKat.ownerOf(_tokenId);
-
-        if (msg.sender != ownerOf) {
-            revert NotOwner();
-        }
-
+    function setPreferences(VKatMetaDataV1 calldata _preferences) public virtual {
         _validatePreferences(_preferences);
-        preferences[_tokenId] = _preferences;
+        preferences[msg.sender] = _preferences;
 
-        emit PreferencesSet(_tokenId, msg.sender, _preferences);
+        emit PreferencesSet(msg.sender, _preferences);
     }
 
     // =========== View Functions ==============
@@ -94,19 +88,14 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
     }
 
     /// @inheritdoc IVKatMetadata
-    /// @dev There could be a situation when `_tokenId` existed and user set
-    ///      a preference for it. Later on, `_tokenId` was burnt. To still allow
-    ///      the caller to know what the preferences was for that `_tokenId`,
-    ///      we use low level call to fetch owner of the tokenId.
-    function getPreferencesOrDefault(uint256 _tokenId) external view returns (address, VKatMetaDataV1 memory) {
-        VKatMetaDataV1 memory preferences_ = preferences[_tokenId];
-        address owner = _getOwner(_tokenId);
+    function getPreferencesOrDefault(address _account) public view returns (VKatMetaDataV1 memory) {
+        VKatMetaDataV1 memory preferences_ = preferences[_account];
 
         if (preferences_.votingPolicy == VotingPolicy.None) {
             preferences_ = getDefaultPreferences();
         }
 
-        return (owner, preferences_);
+        return preferences_;
     }
 
     /// @inheritdoc IVKatMetadata
@@ -125,15 +114,6 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
 
         defaultPreferences = _preferences;
         emit DefaultPreferencesSet(_preferences);
-    }
-
-    /// @dev Helper function to fetch the token's owner. Most ERC721 reverts
-    ///      if token doesn't have an owner, So we use low-level call to avoid revert.
-    function _getOwner(uint256 _tokenId) private view returns (address) {
-        (bool success, bytes memory data) = address(vKat).staticcall(abi.encodeCall(IVKat.ownerOf, (_tokenId)));
-        if (success) {
-            return abi.decode(data, (address));
-        }
     }
 
     function _validatePreferences(VKatMetaDataV1 calldata _preferences) internal virtual {
