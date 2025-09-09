@@ -39,7 +39,8 @@ contract Swapper {
         address[] calldata _tokens,
         uint256[] calldata _amounts,
         bytes32[][] calldata _proofs,
-        Action[] calldata _actions
+        Action[] calldata _actions,
+        address _outputToken
     )
         public
         returns (uint256)
@@ -49,7 +50,7 @@ contract Swapper {
             users[i] = msg.sender;
         }
 
-        uint256 beforeBalance = IERC20(kat).balanceOf(address(this));
+        uint256 beforeBalance = IERC20(_outputToken).balanceOf(address(this));
 
         // The `user` must have set this contract as a recipient
         // for the `token` prior to calling this.
@@ -61,7 +62,7 @@ contract Swapper {
         );
 
         // At this point, this contract holds balances on specific token(kat) that swap occured into.
-        uint256 afterBalance = IERC20(kat).balanceOf(address(this));
+        uint256 afterBalance = IERC20(_outputToken).balanceOf(address(this));
         uint256 diff = afterBalance - beforeBalance;
 
         // send the difference to the caller.

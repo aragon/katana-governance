@@ -18,13 +18,15 @@ import { AvKATVault } from "./AvKATVault.sol";
 import { Swapper } from "./Swapper.sol";
 
 contract AutoCompoundStrategy {
-    GaugeVoter public voter;
-    AvKATVault public vault;
-    Swapper public swapper;
+    GaugeVoter public immutable voter;
+    AvKATVault public immutable vault;
+    Swapper public immutable swapper;
+    address public immutable token;
 
     constructor(address _gaugeVoter, address _swapper, address _vault) public {
         voter = GaugeVoter(_gaugeVoter);
         vault = AvKATVault(_vault);
+        token = vault.asset();
         swapper = Swapper(_swapper);
     }
 
@@ -40,7 +42,7 @@ contract AutoCompoundStrategy {
     )
         external
     {
-        uint256 claimedAmount = swapper.claimAndSwap(_tokens, _amounts, _proofs, _actions);
+        uint256 claimedAmount = swapper.claimAndSwap(_tokens, _amounts, _proofs, _actions, token);
         if (claimedAmount > 0) {
             vault.deposit(claimedAmount, address(this));
         }
