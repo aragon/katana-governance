@@ -16,21 +16,36 @@ import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.so
 
 import { AvKATVault } from "./AvKATVault.sol";
 import { Swapper } from "./Swapper.sol";
+import { IRewardsDistributor } from "./interfaces/IRewardsDistributor.sol";
 
-contract AutoCompoundStrategy {
+contract AutoCompoundStrategy is DaoAuthorizable {
     GaugeVoter public immutable voter;
     AvKATVault public immutable vault;
     Swapper public immutable swapper;
     address public immutable token;
 
-    constructor(address _gaugeVoter, address _swapper, address _vault) public {
+    bytes32 public constant AUTOCOMPOUND_STRATEGY_ADMIN_ROLE = keccak256("AUTOCOMPOUND_STRATEGY_ADMIN_ROLE");
+
+    constructor(
+        address _dao,
+        address _gaugeVoter,
+        address _swapper,
+        address _vault,
+        address _rewardDistributor
+    )
+        DaoAuthorizable(IDAO(_dao))
+    {
         voter = GaugeVoter(_gaugeVoter);
         vault = AvKATVault(_vault);
-        token = vault.asset();
         swapper = Swapper(_swapper);
+        token = vault.asset();
+
+        // As the caller on distributor's `claim` function will be swapper,
+        // it can only work if this contract allowed swapper to claim on behalf.
+        IRewardsDistributor(_rewardDistributor).toggleOperator(address(this), _swapper);
     }
 
-    function vote(GaugeVoter.GaugeVote[] calldata _votes) external {
+    function vote(GaugeVoter.GaugeVote[] calldata _votes) external auth(AUTOCOMPOUND_STRATEGY_ADMIN_ROLE) {
         voter.vote(_votes);
     }
 

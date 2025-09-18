@@ -31,6 +31,8 @@ import { PluginSetupProcessor } from "@aragon/osx/framework/plugin/setup/PluginS
 import { PluginRepo } from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
 import { DAO } from "@aragon/osx/core/dao/DAO.sol";
 import { Multisig } from "@aragon/multisig-plugin/Multisig.sol";
+import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
+import { Executor } from "@aragon/osx-commons-contracts/src/executors/Executor.sol";
 
 import { GaugeVoterSetupV1_4_0 as GaugeVoterSetup } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 import { AddressGaugeVoter as GaugeVoter } from "@voting/AddressGaugeVoter.sol";
@@ -42,7 +44,15 @@ import { ClockV1_2_0 as Clock } from "@clock/Clock_v1_2_0.sol";
 import { LockV1_2_0 as Lock } from "@lock/Lock_v1_2_0.sol";
 import { EscrowIVotesAdapter } from "@delegation/EscrowIVotesAdapter.sol";
 
+import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
+import { AccessControlManager } from "@merkl/AccessControlManager.sol";
+import { MerkleTree } from "../utils/merkle/MerkleTree.sol";
+import { Swapper } from "../../src/Swapper.sol";
+import { MockSwap } from "../mocks/MockSwap.sol";
+
 contract Base is ERC721Holder, Test {
+    using ProxyLib for address;
+
     // Deployment Objects
     ProtocolFactoryBuilder builder;
     ProtocolFactory.Deployment internal osxDeployment;
@@ -59,11 +69,25 @@ contract Base is ERC721Holder, Test {
     MockERC20 internal token;
     uint256 internal masterTokenId;
     AvKATVault public vault;
+    Swapper internal swapper;
     uint8 internal decimals;
 
-    address public alice = address(3);
-    address public bob = address(4);
-    address public charlie = address(5);
+    // merkl contracts
+    AccessControlManager internal acm;
+    MerklDistributor internal merklDistributor;
+    MockERC20 internal tokenA;
+    MockERC20 internal tokenB;
+    MerkleTree internal merkleTree;
+
+    // other
+    MockSwap internal mockSwap;
+    Executor internal executor;
+
+    // some user addresses
+    address internal alice = address(3);
+    address internal bob = address(4);
+    address internal charlie = address(5);
+    address internal john = address(6);
 
     event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
 
@@ -76,12 +100,39 @@ contract Base is ERC721Holder, Test {
     function setUp() public virtual {
         _deployOsx();
         _deployVe();
+        _deployMerklDistributor();
 
         vm.warp(block.timestamp + 20);
         vm.roll(block.number + 20);
 
+        executor = new Executor();
+
         _deployVault();
+        _deploySwapper();
+        mockSwap = new MockSwap();
+
+        token = MockERC20(vault.asset());
+
         vault.initialize(masterTokenId);
+    }
+
+    function _deployMerklDistributor() internal {
+        acm = AccessControlManager(
+            address(new AccessControlManager()).deployUUPSProxy(
+                abi.encodeCall(AccessControlManager.initialize, (address(this), alice))
+            )
+        );
+        merklDistributor = MerklDistributor(
+            address(new MerklDistributor()).deployUUPSProxy(abi.encodeCall(MerklDistributor.initialize, acm))
+        );
+
+        merkleTree = new MerkleTree();
+
+        tokenA = new MockERC20();
+        tokenB = new MockERC20();
+
+        tokenA.mint(address(merklDistributor), 1000e18);
+        tokenB.mint(address(merklDistributor), 1000e18);
     }
 
     function _deployOsx() internal {
@@ -197,6 +248,10 @@ contract Base is ERC721Holder, Test {
         token.approve(address(escrow), 100 * 10 ** 18);
         masterTokenId = escrow.createLock(100 * 10 ** 18);
         lockNft.transferFrom(address(this), address(vault), masterTokenId);
+    }
+
+    function _deploySwapper() internal {
+        swapper = new Swapper(address(merklDistributor), address(vault), address(executor));
     }
 
     function _mintAndApprove(address _account, address _who, uint256 _amount) internal {
