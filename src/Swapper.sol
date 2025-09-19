@@ -26,11 +26,15 @@ contract Swapper is ReentrancyGuard {
     error ActionsFailed();
     error NoBalanceChange();
     error ZeroAddress();
+    error LengthMismatch();
+
+    event ClaimAndSwapped(
+        address indexed user, address[] inTokens, address[] outTokens, uint256[] claimAmounts, uint256[] diffs
+    );
 
     IRewardsDistributor public immutable rewardDistributor;
     AvKATVault public immutable vault;
     address public immutable executor;
-    address public immutable kat;
 
     constructor(address _rewardDistributor, address _vault, address _executor) public {
         if (_executor == address(0)) {
@@ -40,7 +44,6 @@ contract Swapper is ReentrancyGuard {
         rewardDistributor = IRewardsDistributor(_rewardDistributor);
         vault = AvKATVault(_vault);
         executor = _executor;
-        kat = vault.asset();
     }
 
     /// @param _tokens The token addresses that caller wants to claim.
@@ -55,25 +58,34 @@ contract Swapper is ReentrancyGuard {
         uint256[] calldata _amounts,
         bytes32[][] calldata _proofs,
         Action[] calldata _actions,
-        address _outputToken
+        address[] calldata _outTokens
     )
         public
         nonReentrant
-        returns (uint256)
+        returns (uint256[] memory)
     {
-        address[] memory users = new address[](_tokens.length);
-        for (uint256 i = 0; i < users.length; i++) {
+        uint256 len = _tokens.length;
+        if (_amounts.length != len || _outTokens.length != len || _actions.length != len) {
+            revert LengthMismatch();
+        }
+
+        address[] memory users = new address[](len);
+        for (uint256 i = 0; i < len; i++) {
             users[i] = msg.sender;
         }
 
-        uint256 beforeBalance = IERC20(_outputToken).balanceOf(address(this));
-
-        // `rewardDistributor` would revert if array length mismatch occurs.
         // The `user` must have set this contract as a recipient
         // for the `token` prior to calling this.
         // At this point, this contract holds balances on `_tokens`.
         rewardDistributor.claim(users, _tokens, _amounts, _proofs);
 
+        // store the balances before calling actions.
+        uint256[] memory beforeBalances = new uint256[](len);
+        for (uint256 i = 0; i < beforeBalances.length; i++) {
+            beforeBalances[i] = balanceOfSwapper(_outTokens[i]);
+        }
+
+        // call actions
         (bool success,) = executor.delegatecall(
             abi.encodeCall(Executor.execute, (bytes32(uint256(uint160(address(this)))), _actions, 0))
         );
@@ -81,17 +93,30 @@ contract Swapper is ReentrancyGuard {
             revert ActionsFailed();
         }
 
-        // At this point, this contract holds balances on specific token(kat) that swap occured into.
-        uint256 afterBalance = IERC20(_outputToken).balanceOf(address(this));
-        uint256 diff = afterBalance - beforeBalance;
+        uint256[] memory diffs = new uint256[](len);
 
-        if (diff == 0) {
-            revert NoBalanceChange();
+        // Check that on all output tokens, balance has increased.
+        for (uint256 i = 0; i < len; i++) {
+            address outToken = _outTokens[i];
+
+            uint256 afterBalance = balanceOfSwapper(outToken);
+            uint256 diff = afterBalance - beforeBalances[i];
+
+            if (diff == 0) {
+                revert NoBalanceChange();
+            }
+
+            diffs[i] = diff;
+
+            IERC20(outToken).safeTransfer(msg.sender, diff);
         }
 
-        // send the difference to the caller.
-        IERC20(_outputToken).safeTransfer(msg.sender, diff);
+        emit ClaimAndSwapped(msg.sender, _tokens, _outTokens, _amounts, diffs);
 
-        return diff;
+        return diffs;
+    }
+
+    function balanceOfSwapper(address _token) private view returns (uint256) {
+        return IERC20(_token).balanceOf(address(this));
     }
 }
