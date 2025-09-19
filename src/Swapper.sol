@@ -27,13 +27,16 @@ contract Swapper is ReentrancyGuard {
     error NoBalanceChange();
     error ZeroAddress();
 
-    GaugeVoter public immutable voter;
     IRewardsDistributor public immutable rewardDistributor;
     AvKATVault public immutable vault;
     address public immutable executor;
     address public immutable kat;
 
     constructor(address _rewardDistributor, address _vault, address _executor) public {
+        if (_executor == address(0)) {
+            revert ZeroAddress();
+        }
+
         rewardDistributor = IRewardsDistributor(_rewardDistributor);
         vault = AvKATVault(_vault);
         executor = _executor;
@@ -65,6 +68,7 @@ contract Swapper is ReentrancyGuard {
 
         uint256 beforeBalance = IERC20(_outputToken).balanceOf(address(this));
 
+        // `rewardDistributor` would revert if array length mismatch occurs.
         // The `user` must have set this contract as a recipient
         // for the `token` prior to calling this.
         // At this point, this contract holds balances on `_tokens`.
@@ -86,7 +90,7 @@ contract Swapper is ReentrancyGuard {
         }
 
         // send the difference to the caller.
-        IERC20(kat).safeTransfer(msg.sender, diff);
+        IERC20(_outputToken).safeTransfer(msg.sender, diff);
 
         return diff;
     }
