@@ -7,7 +7,7 @@ import { MerkleTree } from "@merkl/Distributor.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import { Errors } from "@merkl/utils/Errors.sol";
 import { MockSwap } from "../mocks/MockSwap.sol";
-// import { MerkleTree } from "@openzeppelin/contracts/utils/structs/MerkleTree.sol";
+import { Swapper } from "../../src/Swapper.sol";
 
 contract SwapperTest is Base {
     bytes32 internal root;
@@ -66,7 +66,7 @@ contract SwapperTest is Base {
 
         vm.expectRevert(Errors.InvalidProof.selector);
         vm.prank(alice, alice);
-        swapper.claimAndSwap(tokens, amounts, proofs, actions, address(token));
+        swapper.claimAndSwap(Swapper.Claim(tokens, amounts, proofs), actions, Swapper.AutoCompound(false, 0));
     }
 
     function test_ClaimsAndSwapsSuccessfully() public {
@@ -86,7 +86,7 @@ contract SwapperTest is Base {
 
         assertEq(token.balanceOf(alice), 0);
         vm.prank(alice, alice);
-        swapper.claimAndSwap(tokens, amounts, proofs, actions, address(token));
+        swapper.claimAndSwap(Swapper.Claim(tokens, amounts, proofs), actions, Swapper.AutoCompound(false, 0));
 
         assertEq(token.balanceOf(alice), 130e18);
     }

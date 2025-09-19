@@ -251,7 +251,7 @@ contract Base is ERC721Holder, Test {
     }
 
     function _deploySwapper() internal {
-        swapper = new Swapper(address(merklDistributor), address(vault), address(executor));
+        swapper = new Swapper(address(merklDistributor), address(escrow), address(executor));
     }
 
     function _mintAndApprove(address _account, address _who, uint256 _amount) internal {

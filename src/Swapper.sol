@@ -18,7 +18,7 @@ import { IRewardsDistributor } from "./interfaces/IRewardsDistributor.sol";
 import { AvKATVault } from "./AvKATVault.sol";
 import { Executor } from "@aragon/osx-commons-contracts/src/executors/Executor.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import { console2 as console } from "forge-std/console2.sol";
+import { VotingEscrowV1_2_0 as Escrow } from "@escrow/VotingEscrowIncreasing_v1_2_0.sol";
 
 contract Swapper is ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -29,61 +29,62 @@ contract Swapper is ReentrancyGuard {
     error LengthMismatch();
 
     event ClaimAndSwapped(
-        address indexed user, address[] inTokens, address[] outTokens, uint256[] claimAmounts, uint256[] diffs
+        address indexed user, address[] tokens, uint256[] claimAmounts, bool useAutoCompound, uint256 compoundAmount
     );
 
-    IRewardsDistributor public immutable rewardDistributor;
-    AvKATVault public immutable vault;
-    address public immutable executor;
+    struct AutoCompound {
+        bool useAutoCompound;
+        uint256 weight;
+    }
 
-    constructor(address _rewardDistributor, address _vault, address _executor) public {
+    struct Claim {
+        address[] tokens;
+        uint256[] amounts;
+        bytes32[][] proofs;
+    }
+
+    IRewardsDistributor public immutable rewardDistributor;
+    address public immutable executor;
+    Escrow public immutable escrow;
+    address public immutable token;
+
+    constructor(address _rewardDistributor, address _escrow, address _executor) public {
         if (_executor == address(0)) {
             revert ZeroAddress();
         }
 
         rewardDistributor = IRewardsDistributor(_rewardDistributor);
-        vault = AvKATVault(_vault);
         executor = _executor;
+        escrow = Escrow(_escrow);
+        token = escrow.token();
     }
 
-    /// @param _tokens The token addresses that caller wants to claim.
-    /// @param _amounts How much to claim for each token.
-    /// @param _proofs The merkle proof for each token that user really has funds.
+    /// @param _claim Tokens, their respective amounts to claim and merkle proofs for each.
     /// @param _actions The custom actions used to swap tokens in `_outputToken`.
-    /// @param _outputToken The token that all `_tokens` gets swapped into.
-    ///                     All the swapped amounts end up on `_outputToken`
-    ///                     which is sent to the caller.
+    /// @param _autoCompound How much portion of kat to create lock for. Only applicable if
+    ///                     `_autoCompound.useAutoCompound` is set to true.
+    /// @return How much amount it created lock with. Only applicable if `_useAutoCompound` is true.
     function claimAndSwap(
-        address[] calldata _tokens,
-        uint256[] calldata _amounts,
-        bytes32[][] calldata _proofs,
+        Claim calldata _claim,
         Action[] calldata _actions,
-        address[] calldata _outTokens
+        AutoCompound calldata _autoCompound
     )
         public
         nonReentrant
-        returns (uint256[] memory)
+        returns (uint256)
     {
-        uint256 len = _tokens.length;
-        if (_amounts.length != len || _outTokens.length != len || _actions.length != len) {
-            revert LengthMismatch();
-        }
-
-        address[] memory users = new address[](len);
-        for (uint256 i = 0; i < len; i++) {
+        address[] memory users = new address[](_claim.tokens.length);
+        for (uint256 i = 0; i < _claim.tokens.length; i++) {
             users[i] = msg.sender;
         }
 
+        // If `_tokens`, `_amounts` and `_proofs` have incorrect size, below reverts.
         // The `user` must have set this contract as a recipient
         // for the `token` prior to calling this.
         // At this point, this contract holds balances on `_tokens`.
-        rewardDistributor.claim(users, _tokens, _amounts, _proofs);
+        rewardDistributor.claim(users, _claim.tokens, _claim.amounts, _claim.proofs);
 
-        // store the balances before calling actions.
-        uint256[] memory beforeBalances = new uint256[](len);
-        for (uint256 i = 0; i < beforeBalances.length; i++) {
-            beforeBalances[i] = balanceOfSwapper(_outTokens[i]);
-        }
+        uint256 beforeAmount = IERC20(token).balanceOf(address(this));
 
         // call actions
         (bool success,) = executor.delegatecall(
@@ -93,30 +94,19 @@ contract Swapper is ReentrancyGuard {
             revert ActionsFailed();
         }
 
-        uint256[] memory diffs = new uint256[](len);
+        uint256 afterAmount = IERC20(token).balanceOf(address(this));
 
-        // Check that on all output tokens, balance has increased.
-        for (uint256 i = 0; i < len; i++) {
-            address outToken = _outTokens[i];
-
-            uint256 afterBalance = balanceOfSwapper(outToken);
-            uint256 diff = afterBalance - beforeBalances[i];
-
-            if (diff == 0) {
-                revert NoBalanceChange();
+        uint256 diff = afterAmount - beforeAmount;
+        if (diff > 0) {
+            if (_autoCompound.useAutoCompound) {
+                escrow.createLockFor(diff * _autoCompound.weight, msg.sender);
+            } else {
+                IERC20(token).transfer(msg.sender, diff);
             }
-
-            diffs[i] = diff;
-
-            IERC20(outToken).safeTransfer(msg.sender, diff);
         }
 
-        emit ClaimAndSwapped(msg.sender, _tokens, _outTokens, _amounts, diffs);
+        emit ClaimAndSwapped(msg.sender, _claim.tokens, _claim.amounts, _autoCompound.useAutoCompound, diff);
 
-        return diffs;
-    }
-
-    function balanceOfSwapper(address _token) private view returns (uint256) {
-        return IERC20(_token).balanceOf(address(this));
+        return diff;
     }
 }

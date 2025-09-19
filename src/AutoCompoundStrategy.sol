@@ -57,7 +57,8 @@ contract AutoCompoundStrategy is DaoAuthorizable {
     )
         external
     {
-        uint256 claimedAmount = swapper.claimAndSwap(_tokens, _amounts, _proofs, _actions, token);
+        uint256 claimedAmount =
+            swapper.claimAndSwap(Swapper.Claim(_tokens, _amounts, _proofs), _actions, Swapper.AutoCompound(false, 0));
         if (claimedAmount > 0) {
             vault.deposit(claimedAmount, address(this));
         }
