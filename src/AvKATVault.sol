@@ -9,25 +9,22 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
 import { VotingEscrow, EscrowIVotesAdapter, GaugeVoter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
-import { FixedPointMathLib } from "solmate/utils/FixedPointMathLib.sol";
 import { DaoAuthorizable } from "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizable.sol";
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IRewardsDistributor } from "./interfaces/IRewardsDistributor.sol";
-import { AutoCompoundStrategy } from "./AutoCompoundStrategy.sol";
+import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
+import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
 contract AvKATVault is ERC4626, Initializable, ERC721Holder, DaoAuthorizable {
-    using FixedPointMathLib for uint256;
-
     bytes32 public constant VAULT_ADMIN_ROLE = keccak256("VAULT_ADMIN_ROLE");
     bytes32 public constant SWEEPER_ROLE = keccak256("SWEEPER_ROLE");
 
     /// Addresses required for operations.
-    EscrowIVotesAdapter public ivotesAdapter;
-    VotingEscrow public escrow;
-    LockNFT public lockNft;
+    EscrowIVotesAdapter public immutable ivotesAdapter;
+    VotingEscrow public immutable escrow;
+    LockNFT public immutable lockNft;
     address public strategy;
 
     /// The single tokenId that this vault will hold and
@@ -44,7 +41,7 @@ contract AvKATVault is ERC4626, Initializable, ERC721Holder, DaoAuthorizable {
 
     constructor(
         address _dao,
-        address _ivotesAdapter,
+        address _escrow,
         address _strategy,
         address _asset,
         string memory _name,
@@ -54,8 +51,8 @@ contract AvKATVault is ERC4626, Initializable, ERC721Holder, DaoAuthorizable {
         ERC20(_name, _symbol)
         DaoAuthorizable(IDAO(_dao))
     {
-        ivotesAdapter = EscrowIVotesAdapter(_ivotesAdapter);
-        escrow = VotingEscrow(ivotesAdapter.escrow());
+        escrow = VotingEscrow(_escrow);
+        ivotesAdapter = EscrowIVotesAdapter(escrow.ivotesAdapter());
         lockNft = LockNFT(escrow.lockNFT());
 
         if (_strategy != address(0)) {
@@ -203,7 +200,7 @@ contract AvKATVault is ERC4626, Initializable, ERC721Holder, DaoAuthorizable {
     /// @dev Allows an admin to set a new strategy contract.
     ///      It automatically undelegates from old strategy
     ///      and delegates to new one.
-    function _setStrategy(address _strategy) public auth(VAULT_ADMIN_ROLE) {
+    function _setStrategy(address _strategy) internal virtual {
         // Since Vault only holds `masterTokenId`, the delegate
         // will delegate that token to new strategy.
         ivotesAdapter.delegate(_strategy);

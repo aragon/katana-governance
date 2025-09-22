@@ -47,8 +47,11 @@ import { EscrowIVotesAdapter } from "@delegation/EscrowIVotesAdapter.sol";
 import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
 import { AccessControlManager } from "@merkl/AccessControlManager.sol";
 import { MerkleTree } from "../utils/merkle/MerkleTree.sol";
-import { Swapper } from "../../src/Swapper.sol";
+import { MerkleTree as MerkleTreeStruct } from "@merkl/Distributor.sol";
 import { MockSwap } from "../mocks/MockSwap.sol";
+
+import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
+import { Swapper } from "src/Swapper.sol";
 
 contract Base is ERC721Holder, Test {
     using ProxyLib for address;
@@ -60,24 +63,31 @@ contract Base is ERC721Holder, Test {
 
     // ve contracts
     DAO internal dao;
-    address internal ivotesAdapter;
+    EscrowIVotesAdapter internal ivotesAdapter;
     VotingEscrow internal escrow;
     Multisig internal multisig;
     Lock internal lockNft;
+    GaugeVoter internal voter;
+    address internal gaugeA = vm.createWallet("gaugeA").addr;
+    address internal gaugeB = vm.createWallet("gaugeB").addr;
 
     // kat contracts
     MockERC20 internal token;
     uint256 internal masterTokenId;
     AvKATVault public vault;
     Swapper internal swapper;
+    AutoCompoundStrategy internal autoCompoundStrategy;
     uint8 internal decimals;
 
     // merkl contracts
     AccessControlManager internal acm;
     MerklDistributor internal merklDistributor;
-    MockERC20 internal tokenA;
-    MockERC20 internal tokenB;
+    address internal tokenA;
+    address internal tokenB;
+    address internal tokenC;
     MerkleTree internal merkleTree;
+    bytes32 internal root;
+    bytes32[] internal leaves;
 
     // other
     MockSwap internal mockSwap;
@@ -97,6 +107,12 @@ contract Base is ERC721Holder, Test {
 
     event TokenIdWithdrawn(uint256 tokenId, address receiver);
 
+    struct ClaimInput {
+        address token;
+        uint256 amount;
+        bytes32[] proof;
+    }
+
     function setUp() public virtual {
         _deployOsx();
         _deployVe();
@@ -109,13 +125,17 @@ contract Base is ERC721Holder, Test {
 
         _deployVault();
         _deploySwapper();
+        _deployAutoCompoundStrategy();
+
         mockSwap = new MockSwap();
 
         token = MockERC20(vault.asset());
 
         vault.initialize(masterTokenId);
+        vault.setStrategy(address(autoCompoundStrategy));
     }
 
+    // ===== DEPLOY HELPERS ============
     function _deployMerklDistributor() internal {
         acm = AccessControlManager(
             address(new AccessControlManager()).deployUUPSProxy(
@@ -128,11 +148,12 @@ contract Base is ERC721Holder, Test {
 
         merkleTree = new MerkleTree();
 
-        tokenA = new MockERC20();
-        tokenB = new MockERC20();
+        tokenA = address(new MockERC20());
+        tokenB = address(new MockERC20());
+        tokenC = address(new MockERC20());
 
-        tokenA.mint(address(merklDistributor), 1000e18);
-        tokenB.mint(address(merklDistributor), 1000e18);
+        MockERC20(tokenA).mint(address(merklDistributor), 1000e18);
+        MockERC20(tokenB).mint(address(merklDistributor), 1000e18);
     }
 
     function _deployOsx() internal {
@@ -196,11 +217,97 @@ contract Base is ERC721Holder, Test {
 
         Deployment memory deps = veGovFactory.getDeployment();
         dao = deps.dao;
-        ivotesAdapter = address(deps.gaugeVoterPluginSets[0].delegationAdapter);
+        ivotesAdapter = deps.gaugeVoterPluginSets[0].delegationAdapter;
         escrow = deps.gaugeVoterPluginSets[0].votingEscrow;
         lockNft = deps.gaugeVoterPluginSets[0].nftLock;
         multisig = Multisig(address(deps.multisigPlugin));
+        voter = deps.gaugeVoterPluginSets[0].plugin;
         token = MockERC20(tokenParameters[0].token);
+
+        vm.startPrank(address(dao));
+        voter.createGauge(gaugeA, "metadata1");
+        voter.createGauge(gaugeB, "metadata2");
+        vm.stopPrank();
+    }
+
+    function _deployVault() internal {
+        vault = new AvKATVault(
+            address(dao), address(escrow), address(0), address(escrow.token()), "Autocompounding veKAT", "avKAT"
+        );
+
+        vm.startPrank(address(dao));
+        dao.grant(address(vault), address(this), vault.VAULT_ADMIN_ROLE());
+        dao.grant(address(vault), address(this), vault.SWEEPER_ROLE());
+        dao.grant(address(lockNft), address(this), lockNft.LOCK_ADMIN_ROLE());
+        dao.grant(address(escrow), address(this), escrow.ESCROW_ADMIN_ROLE());
+
+        vm.stopPrank();
+
+        lockNft.setWhitelisted(address(vault), true);
+        escrow.enableSplit();
+
+        token.approve(address(escrow), 100 * 10 ** 18);
+        masterTokenId = escrow.createLock(100 * 10 ** 18);
+        lockNft.transferFrom(address(this), address(vault), masterTokenId);
+    }
+
+    function _deploySwapper() internal {
+        swapper = new Swapper(address(merklDistributor), address(escrow), address(executor));
+    }
+
+    function _deployAutoCompoundStrategy() internal {
+        autoCompoundStrategy = new AutoCompoundStrategy(
+            address(dao), address(escrow), address(swapper), address(vault), address(merklDistributor)
+        );
+
+        vm.startPrank(address(dao));
+        dao.grant(address(autoCompoundStrategy), address(this), autoCompoundStrategy.AUTOCOMPOUND_STRATEGY_ADMIN_ROLE());
+        vm.stopPrank();
+    }
+
+    // ===== HELPERS ============
+
+    function buildMerkleTree(address _user, uint256 _tokenAAmount, uint256 _tokenBAmount) internal {
+        // Alice  has 50e18 on tokenA and 15e18 on tokenB
+        leaves.push(keccak256(abi.encode(_user, tokenA, _tokenAAmount)));
+        leaves.push(keccak256(abi.encode(_user, tokenB, _tokenBAmount)));
+
+        root = merkleTree.getRoot(leaves);
+
+        merklDistributor.updateTree(MerkleTreeStruct({ merkleRoot: root, ipfsHash: bytes32(0) }));
+
+        // Each user has to allow swapper to claim per each token.
+        vm.startPrank(_user);
+        merklDistributor.setClaimRecipient(address(swapper), address(tokenA));
+        merklDistributor.setClaimRecipient(address(swapper), address(tokenB));
+        vm.stopPrank();
+
+        // required by merklDistributor.
+        vm.warp(merklDistributor.endOfDisputePeriod() + 1);
+
+        vm.startPrank(address(swapper));
+        MockERC20(tokenA).approve(address(mockSwap), type(uint192).max);
+        MockERC20(tokenB).approve(address(mockSwap), type(uint192).max);
+        vm.stopPrank();
+    }
+
+    // ==================================== Helper Functions ==============================
+    function buildClaimAndSwapParams(ClaimInput[] memory _claims)
+        internal
+        pure
+        returns (address[] memory, uint256[] memory, bytes32[][] memory)
+    {
+        address[] memory tokens = new address[](_claims.length);
+        uint256[] memory amounts = new uint256[](_claims.length);
+        bytes32[][] memory proofs = new bytes32[][](_claims.length);
+
+        for (uint256 i; i < _claims.length; ++i) {
+            tokens[i] = _claims[i].token;
+            amounts[i] = _claims[i].amount;
+            proofs[i] = _claims[i].proof;
+        }
+
+        return (tokens, amounts, proofs);
     }
 
     function createTestToken(address[] memory holders) internal returns (address) {
@@ -219,45 +326,12 @@ contract Base is ERC721Holder, Test {
         multisig.createProposal("", _actions, 0, true, true, 0, uint64(block.timestamp + 1 days));
     }
 
-    function _deployVault() internal {
-        vault = new AvKATVault(
-            address(dao), address(ivotesAdapter), address(0), address(escrow.token()), "Autocompounding veKAT", "avKAT"
-        );
-
-        Action[] memory actions = new Action[](4);
-        actions[0].to = address(dao);
-        actions[0].data =
-            abi.encodeCall(PermissionManager.grant, (address(vault), address(this), vault.VAULT_ADMIN_ROLE()));
-
-        actions[1].to = address(dao);
-        actions[1].data = abi.encodeCall(PermissionManager.grant, (address(vault), address(this), vault.SWEEPER_ROLE()));
-
-        actions[2].to = address(dao);
-        actions[2].data =
-            abi.encodeCall(PermissionManager.grant, (address(lockNft), address(this), lockNft.LOCK_ADMIN_ROLE()));
-
-        actions[3].to = address(dao);
-        actions[3].data =
-            abi.encodeCall(PermissionManager.grant, (address(escrow), address(this), escrow.ESCROW_ADMIN_ROLE()));
-
-        _createProposal(actions);
-
-        lockNft.setWhitelisted(address(vault), true);
-        escrow.enableSplit();
-
-        token.approve(address(escrow), 100 * 10 ** 18);
-        masterTokenId = escrow.createLock(100 * 10 ** 18);
-        lockNft.transferFrom(address(this), address(vault), masterTokenId);
-    }
-
-    function _deploySwapper() internal {
-        swapper = new Swapper(address(merklDistributor), address(escrow), address(executor));
-    }
-
     function _mintAndApprove(address _account, address _who, uint256 _amount) internal {
         token.mint(_account, _amount);
+        uint256 currentAllowance = token.allowance(_account, _who);
+
         vm.prank(_account);
-        token.approve(_who, _amount);
+        token.approve(_who, currentAllowance + _amount);
     }
 
     function _parseToken(uint256 _amount) internal view returns (uint256) {

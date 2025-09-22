@@ -2,8 +2,8 @@
 pragma solidity ^0.8.17;
 
 import { Base } from "../Base.sol";
-import { AvKATVault } from "../../../src/AvKATVault.sol";
-import { PermissionManager } from "@aragon/osx/core/permission/PermissionManager.sol";
+
+import { AvKATVault } from "src/AvKATVault.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
 contract VaultInitializeTest is Base {
