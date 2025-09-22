@@ -45,21 +45,15 @@ contract Swapper is ISwapper, ReentrancyGuard {
     function claimAndSwap(
         Claim calldata _claim,
         Action[] calldata _actions,
-        AutoCompound calldata _autoCompound
+        uint256 _weight
     )
         public
         nonReentrant
         returns (uint256 diff, uint256 tokenId)
     {
-        // If auto compound is enabled, weight must be non zero.
-        // If auto compound is disabled, weight must be 0 to avoid ambiguity.
-        if (_autoCompound.useAutoCompound != (_autoCompound.weight != 0)) {
-            revert InvalidAutoCompoundConfig();
-        }
-
         // make sure weight is never more than 100.
-        if (_autoCompound.weight > 100) {
-            revert InvalidAutoCompoundWeight();
+        if (_weight > 100) {
+            revert WeightTooBig();
         }
 
         address[] memory users = new address[](_claim.tokens.length);
@@ -89,12 +83,12 @@ contract Swapper is ISwapper, ReentrancyGuard {
         Locked memory lock;
 
         // If diff > 0, then kat token balance was increased on this contract.
-        // If autoCompound is requested, create a lock with weight percentage.
+        // If weight > 0, create a lock with weight percentage.
         // The rest goes to the sender.
         if (diff > 0) {
             uint256 remaining = diff;
-            if (_autoCompound.useAutoCompound) {
-                lock.amount = (diff * _autoCompound.weight) / 100;
+            if (_weight > 0) {
+                lock.amount = (diff * _weight) / 100;
                 remaining = diff - lock.amount;
 
                 IERC20(token).approve(address(escrow), lock.amount);
@@ -106,7 +100,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
             }
         }
 
-        emit ClaimAndSwapped(msg.sender, _claim.tokens, _claim.amounts, _autoCompound, lock);
+        emit ClaimAndSwapped(msg.sender, _claim.tokens, _claim.amounts, _weight, lock);
 
         return (diff, lock.tokenId);
     }
