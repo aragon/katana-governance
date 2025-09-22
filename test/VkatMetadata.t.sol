@@ -228,11 +228,10 @@ contract VKatMetadataTest is Test {
 
         vm.expectEmit(true, true, false, true);
         emit PreferencesSet(tokenId, alice, customPrefs);
-        metadata.setPreferences(tokenId, customPrefs);
+        metadata.setPreferences(customPrefs);
 
-        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata.getPreferencesOrDefault(tokenId);
+        IVKatMetadata.VKatMetaDataV1 memory prefs = metadata.getPreferencesOrDefault(alice);
 
-        assertEq(owner, alice);
         assertEq(uint8(prefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.Manual));
         assertEq(prefs.rewardTokens.length, 2);
         assertEq(prefs.rewardTokens[0], token2);
@@ -254,7 +253,7 @@ contract VKatMetadataTest is Test {
         customPrefs.votingPolicy = IVKatMetadata.VotingPolicy.Manual;
 
         vm.expectRevert(IVKatMetadata.NotOwner.selector);
-        metadata.setPreferences(tokenId, customPrefs);
+        metadata.setPreferences(customPrefs);
 
         vm.stopPrank();
     }
@@ -274,22 +273,7 @@ contract VKatMetadataTest is Test {
         customPrefs.rewardTokenWeights[0] = 100;
 
         vm.expectRevert(abi.encodeWithSelector(IVKatMetadata.TokenNotWhitelisted.selector, nonWhitelistedToken));
-        metadata.setPreferences(tokenId, customPrefs);
-
-        vm.stopPrank();
-    }
-
-    function test_SetPreferencesNonExistentToken() public {
-        uint256 nonExistentTokenId = 999;
-
-        vm.startPrank(alice);
-
-        IVKatMetadata.VKatMetaDataV1 memory customPrefs;
-        customPrefs.votingPolicy = IVKatMetadata.VotingPolicy.Manual;
-
-        // This should revert with ERC721 error since token doesn't exist
-        vm.expectRevert("ERC721: invalid token ID");
-        metadata.setPreferences(nonExistentTokenId, customPrefs);
+        metadata.setPreferences(customPrefs);
 
         vm.stopPrank();
     }
@@ -310,12 +294,11 @@ contract VKatMetadataTest is Test {
         customPrefs.rewardTokenWeights = new uint16[](1);
         customPrefs.rewardTokenWeights[0] = 100;
 
-        metadata.setPreferences(tokenId, customPrefs);
+        metadata.setPreferences(customPrefs);
         vm.stopPrank();
 
-        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata.getPreferencesOrDefault(tokenId);
+        IVKatMetadata.VKatMetaDataV1 memory prefs = metadata.getPreferencesOrDefault(alice);
 
-        assertEq(owner, alice);
         assertEq(uint8(prefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.Manual));
         assertEq(prefs.rewardTokens.length, 1);
         assertEq(prefs.rewardTokens[0], token1);
@@ -326,43 +309,13 @@ contract VKatMetadataTest is Test {
         vm.prank(address(this));
         uint256 tokenId = vkat.mint(alice);
 
-        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata.getPreferencesOrDefault(tokenId);
+        IVKatMetadata.VKatMetaDataV1 memory prefs = metadata.getPreferencesOrDefault(alice);
 
-        assertEq(owner, alice);
         // Should return default preferences
         assertEq(uint8(prefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.ProfitMaximize));
         assertEq(prefs.rewardTokens.length, 2);
         assertEq(prefs.rewardTokens[0], token1);
         assertEq(prefs.rewardTokens[1], token2);
-    }
-
-    function test_GetPreferencesOrDefaultForBurnedToken() public {
-        // Mint NFT to alice
-        vm.prank(address(this));
-        uint256 tokenId = vkat.mint(alice);
-
-        // Set custom preferences
-        vm.startPrank(alice);
-        IVKatMetadata.VKatMetaDataV1 memory customPrefs;
-        customPrefs.votingPolicy = IVKatMetadata.VotingPolicy.Manual;
-        customPrefs.rewardTokens = new address[](1);
-        customPrefs.rewardTokens[0] = token1;
-        customPrefs.rewardTokenWeights = new uint16[](1);
-        customPrefs.rewardTokenWeights[0] = 100;
-
-        metadata.setPreferences(tokenId, customPrefs);
-        vm.stopPrank();
-
-        // Burn the token
-        vm.prank(address(this));
-        vkat.burn(tokenId);
-
-        // Should still return preferences but owner should be address(0)
-        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata.getPreferencesOrDefault(tokenId);
-
-        assertEq(owner, address(0));
-        assertEq(uint8(prefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.Manual));
-        assertEq(prefs.rewardTokens.length, 1);
     }
 
     function test_AllowedRewardTokens() public {
@@ -401,7 +354,7 @@ contract VKatMetadataTest is Test {
         // First update
         IVKatMetadata.VKatMetaDataV1 memory prefs1;
         prefs1.votingPolicy = IVKatMetadata.VotingPolicy.Manual;
-        metadata.setPreferences(tokenId, prefs1);
+        metadata.setPreferences(prefs1);
 
         // Second update
         IVKatMetadata.VKatMetaDataV1 memory prefs2;
@@ -410,13 +363,12 @@ contract VKatMetadataTest is Test {
         prefs2.rewardTokens[0] = token2;
         prefs2.rewardTokenWeights = new uint16[](1);
         prefs2.rewardTokenWeights[0] = 100;
-        metadata.setPreferences(tokenId, prefs2);
+        metadata.setPreferences(prefs2);
 
         vm.stopPrank();
 
-        (address owner, IVKatMetadata.VKatMetaDataV1 memory finalPrefs) = metadata.getPreferencesOrDefault(tokenId);
+        IVKatMetadata.VKatMetaDataV1 memory finalPrefs = metadata.getPreferencesOrDefault(alice);
 
-        assertEq(owner, alice);
         assertEq(uint8(finalPrefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.ProfitMaximize));
         assertEq(finalPrefs.rewardTokens.length, 1);
         assertEq(finalPrefs.rewardTokens[0], token2);
@@ -434,13 +386,12 @@ contract VKatMetadataTest is Test {
         prefs.rewardTokens = new address[](0);
         prefs.rewardTokenWeights = new uint16[](0);
 
-        metadata.setPreferences(tokenId, prefs);
+        metadata.setPreferences(prefs);
 
         vm.stopPrank();
 
-        (address owner, IVKatMetadata.VKatMetaDataV1 memory storedPrefs) = metadata.getPreferencesOrDefault(tokenId);
+        IVKatMetadata.VKatMetaDataV1 memory storedPrefs = metadata.getPreferencesOrDefault(alice);
 
-        assertEq(owner, alice);
         assertEq(storedPrefs.rewardTokens.length, 0);
         assertEq(storedPrefs.rewardTokenWeights.length, 0);
     }
@@ -454,7 +405,7 @@ contract VKatMetadataTest is Test {
         vm.startPrank(alice);
         IVKatMetadata.VKatMetaDataV1 memory alicePrefs;
         alicePrefs.votingPolicy = IVKatMetadata.VotingPolicy.Manual;
-        metadata.setPreferences(tokenId, alicePrefs);
+        metadata.setPreferences(alicePrefs);
 
         // Alice transfers to Bob
         vkat.transferFrom(alice, bob, tokenId);
@@ -464,18 +415,16 @@ contract VKatMetadataTest is Test {
         vm.startPrank(bob);
         IVKatMetadata.VKatMetaDataV1 memory bobPrefs;
         bobPrefs.votingPolicy = IVKatMetadata.VotingPolicy.ProfitMaximize;
-        metadata.setPreferences(tokenId, bobPrefs);
+        metadata.setPreferences(bobPrefs);
         vm.stopPrank();
 
-        (address owner, IVKatMetadata.VKatMetaDataV1 memory prefs) = metadata.getPreferencesOrDefault(tokenId);
-
-        assertEq(owner, bob);
+        IVKatMetadata.VKatMetaDataV1 memory prefs = metadata.getPreferencesOrDefault(bob);
         assertEq(uint8(prefs.votingPolicy), uint8(IVKatMetadata.VotingPolicy.ProfitMaximize));
 
         // Alice should no longer be able to update
         vm.startPrank(alice);
         vm.expectRevert(IVKatMetadata.NotOwner.selector);
-        metadata.setPreferences(tokenId, alicePrefs);
+        metadata.setPreferences(alicePrefs);
         vm.stopPrank();
     }
 
@@ -539,11 +488,11 @@ contract VKatMetadataTest is Test {
             prefs.rewardTokenWeights[i] = uint16(uint256(keccak256(abi.encode(_seed, i))) % 10000);
         }
 
-        metadata.setPreferences(tokenId, prefs);
+        metadata.setPreferences(prefs);
         vm.stopPrank();
 
-        // // Verify preferences were set correctly
-        (, IVKatMetadata.VKatMetaDataV1 memory storedPrefs) = metadata.getPreferencesOrDefault(tokenId);
+        // Verify preferences were set correctly
+        IVKatMetadata.VKatMetaDataV1 memory storedPrefs = metadata.getPreferencesOrDefault(alice);
 
         assertEq(uint8(storedPrefs.votingPolicy), _votingPolicy);
         assertEq(storedPrefs.rewardTokens.length, _numTokens);
