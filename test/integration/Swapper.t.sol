@@ -23,7 +23,7 @@ contract SwapperTest is Base {
         Action[] memory actions = new Action[](0);
         ISwapper.Claim memory input = ISwapper.Claim(new address[](0), new uint256[](0), new bytes32[][](0));
 
-        vm.expectRevert(ISwapper.WeightTooBig.selector);
+        vm.expectRevert(ISwapper.PctTooBig.selector);
         swapper.claimAndSwap(input, actions, 101);
     }
 
@@ -60,14 +60,14 @@ contract SwapperTest is Base {
         (address[] memory tokens, uint256[] memory amounts, bytes32[][] memory proofs, Action[] memory actions) =
             AliceClaimAndSwapParams(tokenA, address(token), tokenB, address(token));
 
-        uint256 weight = 10;
-        uint256 lockAmount = (weight * 130e18) / 100;
+        uint256 pct = 10;
+        uint256 lockAmount = (pct * 130e18) / 100;
 
         assertEq(token.balanceOf(alice), 0);
         vm.prank(alice, alice);
         vm.expectEmit();
-        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, weight, ISwapper.Locked(2, lockAmount));
-        (uint256 diff, uint256 tokenId) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, weight);
+        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, pct, ISwapper.Locked(2, lockAmount));
+        (uint256 diff, uint256 tokenId) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, pct);
 
         assertEq(diff, 130e18);
         assertEq(escrow.locked(tokenId).amount, lockAmount);
@@ -82,13 +82,13 @@ contract SwapperTest is Base {
 
         assertEq(token.balanceOf(alice), 0);
 
-        uint256 weight = 10;
-        uint256 lockAmount = (weight * 100e18) / 100;
+        uint256 pct = 10;
+        uint256 lockAmount = (pct * 100e18) / 100;
 
         vm.prank(alice, alice);
         vm.expectEmit();
-        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, weight, ISwapper.Locked(2, lockAmount));
-        (uint256 diff, uint256 tokenId) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, weight);
+        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, pct, ISwapper.Locked(2, lockAmount));
+        (uint256 diff, uint256 tokenId) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, pct);
 
         assertEq(diff, 100e18);
         assertEq(escrow.locked(tokenId).amount, lockAmount);

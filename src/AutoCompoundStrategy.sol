@@ -1,42 +1,54 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-
-import { VotingEscrow, GaugeVoter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
-import { FixedPointMathLib } from "solmate/utils/FixedPointMathLib.sol";
-import { DaoAuthorizable } from "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizable.sol";
-import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+import { VotingEscrow, GaugeVoter } from "@setup/GaugeVoterSetup_v1_4_0.sol";
+
+import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
+    "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
+import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { Swapper } from "src/Swapper.sol";
 import { ISwapper } from "src/interfaces/ISwapper.sol";
-
 import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 
-contract AutoCompoundStrategy is DaoAuthorizable {
-    GaugeVoter public immutable voter;
-    AvKATVault public immutable vault;
-    Swapper public immutable swapper;
-    address public immutable token;
-
+contract AutoCompoundStrategy is Initializable, DaoAuthorizable {
+    ///@notice The bytes32 identifier for admin role functions.
     bytes32 public constant AUTOCOMPOUND_STRATEGY_ADMIN_ROLE = keccak256("AUTOCOMPOUND_STRATEGY_ADMIN_ROLE");
 
-    constructor(
+    /// @notice The gauge voter where this contract votes for gauges.
+    GaugeVoter public voter;
+
+    /// @notice The vault address where this contract auto-compounds(deposits kat).
+    AvKATVault public vault;
+
+    /// @notice The swapper contract which this contract asks for claiming tokens.
+    Swapper public swapper;
+
+    /// @notice The token contract that vault uses as assets.
+    address public token;
+
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
         address _dao,
         address _escrow,
         address _swapper,
         address _vault,
         address _rewardDistributor
     )
-        DaoAuthorizable(IDAO(_dao))
+        external
+        initializer
     {
+        __DaoAuthorizableUpgradeable_init(IDAO(_dao));
+
         voter = GaugeVoter(VotingEscrow(_escrow).voter());
         swapper = Swapper(_swapper);
 

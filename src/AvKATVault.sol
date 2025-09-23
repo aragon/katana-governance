@@ -1,30 +1,40 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { ERC20Upgradeable as ERC20 } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import { IERC20Upgradeable as IERC20 } from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import { ERC4626Upgradeable as ERC4626 } from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
-
-import { VotingEscrow, EscrowIVotesAdapter, GaugeVoter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
-import { DaoAuthorizable } from "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizable.sol";
-import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+import { VotingEscrow, EscrowIVotesAdapter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
+
+import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
+    "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
+import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
+
 import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
-contract AvKATVault is ERC4626, Initializable, ERC721Holder, DaoAuthorizable {
+contract AvKATVault is Initializable, ERC721Holder, ERC4626, DaoAuthorizable {
+    /// @notice bytes32 identifier for admin role functions.
     bytes32 public constant VAULT_ADMIN_ROLE = keccak256("VAULT_ADMIN_ROLE");
+
+    /// @notice bytes32 identifier of sweeper that can withdraw mistakenly depositted funds.
     bytes32 public constant SWEEPER_ROLE = keccak256("SWEEPER_ROLE");
 
-    /// Addresses required for operations.
-    EscrowIVotesAdapter public immutable ivotesAdapter;
-    VotingEscrow public immutable escrow;
-    LockNFT public immutable lockNft;
+    /// @notice The ivotes adapter, responsible for delegation activities.
+    EscrowIVotesAdapter public ivotesAdapter;
+
+    /// @notice The escrow contract address.
+    VotingEscrow public escrow;
+
+    /// @notice The nft contract that escrow mints in exchange of erc20 tokens.
+    LockNFT public lockNft;
+
+    /// @notice The strategy contract that vault delegates its vp.
     address public strategy;
 
     /// The single tokenId that this vault will hold and
@@ -39,7 +49,11 @@ contract AvKATVault is ERC4626, Initializable, ERC721Holder, DaoAuthorizable {
     error CannotTransferMasterToken();
     error TokenNotOwned();
 
-    constructor(
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
         address _dao,
         address _escrow,
         address _strategy,
@@ -47,10 +61,13 @@ contract AvKATVault is ERC4626, Initializable, ERC721Holder, DaoAuthorizable {
         string memory _name,
         string memory _symbol
     )
-        ERC4626(IERC20(_asset))
-        ERC20(_name, _symbol)
-        DaoAuthorizable(IDAO(_dao))
+        external
+        reinitializer(1)
     {
+        __DaoAuthorizableUpgradeable_init(IDAO(_dao));
+        __ERC20_init(_name, _symbol);
+        __ERC4626_init(IERC20(_asset));
+
         escrow = VotingEscrow(_escrow);
         ivotesAdapter = EscrowIVotesAdapter(escrow.ivotesAdapter());
         lockNft = LockNFT(escrow.lockNFT());
@@ -75,7 +92,7 @@ contract AvKATVault is ERC4626, Initializable, ERC721Holder, DaoAuthorizable {
     ///      must be called. This is needed as at the deployment time,
     ///      we don't know the address of `AvKATVault` contract, hence
     ///      we can't transfer the token before deployment.
-    function initialize(uint256 _tokenId) external initializer {
+    function initializeMasterTokenId(uint256 _tokenId) external reinitializer(2) {
         address owner = lockNft.ownerOf(_tokenId);
         if (owner != address(this)) {
             revert TokenNotOwned();

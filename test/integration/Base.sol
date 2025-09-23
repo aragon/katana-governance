@@ -14,7 +14,7 @@ import { MockDAO } from "../mocks/MockDAO.sol";
 import { MockVKatERC721 } from "../mocks/MockVKatERC721.sol";
 import { MockERC20 } from "@mocks/MockERC20.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/Executor.sol";
-import { AvKATVault } from "../../src/AvKATVault.sol";
+import { AvKATVault } from "src/AvKATVault.sol";
 import { PermissionManager } from "@aragon/osx/core/permission/PermissionManager.sol";
 
 import { ProtocolFactoryBuilder } from "@aragon/protocol-factory/test/helpers/ProtocolFactoryBuilder.sol";
@@ -52,6 +52,7 @@ import { MockSwap } from "../mocks/MockSwap.sol";
 
 import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
 import { Swapper } from "src/Swapper.sol";
+import { deployVault, deploySwapper, deployAutoCompoundStrategy } from "src/utils/Deployers.sol";
 
 contract Base is ERC721Holder, Test {
     using ProxyLib for address;
@@ -131,7 +132,7 @@ contract Base is ERC721Holder, Test {
 
         token = MockERC20(vault.asset());
 
-        vault.initialize(masterTokenId);
+        vault.initializeMasterTokenId(masterTokenId);
         vault.setStrategy(address(autoCompoundStrategy));
     }
 
@@ -231,9 +232,11 @@ contract Base is ERC721Holder, Test {
     }
 
     function _deployVault() internal {
-        vault = new AvKATVault(
+        (, address vault_) = deployVault(
             address(dao), address(escrow), address(0), address(escrow.token()), "Autocompounding veKAT", "avKAT"
         );
+
+        vault = AvKATVault(vault_);
 
         vm.startPrank(address(dao));
         dao.grant(address(vault), address(this), vault.VAULT_ADMIN_ROLE());
@@ -252,13 +255,15 @@ contract Base is ERC721Holder, Test {
     }
 
     function _deploySwapper() internal {
-        swapper = new Swapper(address(merklDistributor), address(escrow), address(executor));
+        swapper = Swapper(deploySwapper(address(merklDistributor), address(escrow), address(executor)));
     }
 
     function _deployAutoCompoundStrategy() internal {
-        autoCompoundStrategy = new AutoCompoundStrategy(
+        (, address strategy) = deployAutoCompoundStrategy(
             address(dao), address(escrow), address(swapper), address(vault), address(merklDistributor)
         );
+
+        autoCompoundStrategy = AutoCompoundStrategy(strategy);
 
         vm.startPrank(address(dao));
         dao.grant(address(autoCompoundStrategy), address(this), autoCompoundStrategy.AUTOCOMPOUND_STRATEGY_ADMIN_ROLE());

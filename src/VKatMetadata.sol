@@ -1,23 +1,35 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { IVKatMetadata, IVKat } from "./interfaces/IVKatMetadata.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-
 import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import { DaoAuthorizableUpgradeable } from
+import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
     "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
-contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradeable {
+import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
+
+contract VKatMetadata is IVKatMetadata, DaoAuthorizable, UUPSUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    /// @notice The bytes32 identifier for admin role functions.
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
+    /// @notice The preferences per user.
     mapping(address => VKatMetaDataV1) private preferences;
+
+    /// @notice The list of whitelisted tokens added by admin.
     EnumerableSet.AddressSet internal rewardTokens;
+
+    /// @notice The default preferences that will be used if user hasn't set it.
     VKatMetaDataV1 private defaultPreferences;
-    IVKat public vKat;
+
+    /// @notice The address of vkat token.
+    address public vKat;
+
+    constructor() {
+        _disableInitializers();
+    }
 
     function initialize(
         address _dao,
@@ -30,7 +42,7 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
     {
         __DaoAuthorizableUpgradeable_init(IDAO(_dao));
 
-        vKat = IVKat(_vkat);
+        vKat = _vkat;
 
         // whitelist reward tokens.
         for (uint256 i = 0; i < _rewardTokens.length; i++) {
@@ -47,6 +59,10 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
 
     /// @inheritdoc IVKatMetadata
     function addRewardToken(address _token) external auth(ADMIN_ROLE) {
+        if (_token == address(0)) {
+            revert ZeroAddress();
+        }
+
         if (rewardTokens.contains(_token)) {
             revert TokenAlreadyInWhitelist(_token);
         }
@@ -91,7 +107,7 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
     function getPreferencesOrDefault(address _account) public view returns (VKatMetaDataV1 memory) {
         VKatMetaDataV1 memory preferences_ = preferences[_account];
 
-        if (preferences_.votingPolicy == VotingPolicy.None) {
+        if (preferences_.rewardTokens.length == 0) {
             preferences_ = getDefaultPreferences();
         }
 
@@ -117,6 +133,10 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
     }
 
     function _validatePreferences(VKatMetaDataV1 calldata _preferences) internal virtual {
+        if (_preferences.rewardTokens.length != _preferences.rewardTokenWeights.length) {
+            revert LengthMismatch();
+        }
+
         // Validate that reward token is already added by admin in a whitelist.
         for (uint256 i = 0; i < _preferences.rewardTokens.length; i++) {
             address token = _preferences.rewardTokens[i];
@@ -133,5 +153,5 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizableUpgradeable, UUPSUpgradea
         return _getImplementation();
     }
 
-    uint256[43] private __gap;
+    uint256[45] private __gap;
 }

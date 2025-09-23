@@ -21,11 +21,11 @@ contract VaultInitializeTest is Base {
         token.approve(address(escrow), 1);
         uint256 wrongTokenId = escrow.createLock(1);
         vm.expectRevert(AvKATVault.TokenNotOwned.selector);
-        vault.initialize(wrongTokenId);
+        vault.initializeMasterTokenId(wrongTokenId);
     }
 
     function test_CanOnlyBeCalledOnce() public {
         vm.expectRevert();
-        vault.initialize(masterTokenId);
+        vault.initializeMasterTokenId(masterTokenId);
     }
 }

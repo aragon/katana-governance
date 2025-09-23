@@ -8,11 +8,9 @@ interface ISwapper {
     error NoBalanceChange();
     error ZeroAddress();
     error LengthMismatch();
-    error WeightTooBig();
+    error PctTooBig();
 
-    event ClaimAndSwapped(
-        address indexed user, address[] tokens, uint256[] claimAmounts, uint256 _weight, Locked locked
-    );
+    event ClaimAndSwapped(address indexed user, address[] tokens, uint256[] claimAmounts, uint256 pct, Locked locked);
 
     struct Claim {
         address[] tokens;
@@ -27,11 +25,11 @@ interface ISwapper {
 
     /// @param _claim Tokens, their respective amounts to claim and merkle proofs for each.
     /// @param _actions The custom actions used to swap tokens in `_outputToken`.
-    /// @param _weight How much portion of kat to create lock for.
+    /// @param _pct How much percentage of swapped kat to create lock for.
     function claimAndSwap(
         Claim calldata _claim,
         Action[] calldata _actions,
-        uint256 _weight
+        uint256 _pct
     )
         external
         returns (uint256 diff, uint256 tokenId);

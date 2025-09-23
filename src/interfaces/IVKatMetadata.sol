@@ -2,15 +2,6 @@
 pragma solidity ^0.8.17;
 
 /**
- * @title IVKat Interface
- * @dev Defines the necessary functions from the core vKAT NFT contract.
- */
-interface IVKat {
-    function ownerOf(uint256 tokenId) external view returns (address);
-    function isApprovedOrOwner(uint256 tokenId) external view returns (bool);
-}
-
-/**
  * @title IVKatMetadata Interface
  * @author Aragon
  * @notice Interface for the VKatMetadata sidecar contract that stores user preferences for vKAT NFTs
@@ -18,24 +9,10 @@ interface IVKat {
  * locking contract
  */
 interface IVKatMetadata {
-    // --- Data Structures ---
-
-    /// @notice Defines the high-level voting strategy a user wishes to employ
-    enum VotingPolicy {
-        None,
-        ProfitMaximize,
-        Manual
-    }
-    // ... other policies can be added (up to 256 supported)
-
-    /// @notice Stores the full set of preferences for a single vKAT NFT
     struct VKatMetaDataV1 {
-        VotingPolicy votingPolicy;
         uint16[] rewardTokenWeights; // Relative weights, to be normalized by the consumer
         address[] rewardTokens;
     }
-
-    // --- Events ---
 
     /// @notice Emitted when a user sets or updates their preferences
     event PreferencesSet(address indexed account, VKatMetaDataV1 preferences);
@@ -53,8 +30,10 @@ interface IVKatMetadata {
     error TokenNotWhitelisted(address token);
     error TokenAlreadyInWhitelist(address token);
     error TokenNotInWhitelist(address token);
+    error LengthMismatch();
+    error ZeroAddress();
 
-    // --- Administrative Functions ---
+    // ======= Administrative Functions ======
 
     /**
      * @notice Adds a new token to the list of allowed reward tokens
@@ -78,7 +57,7 @@ interface IVKatMetadata {
      */
     function setDefaultPreferences(VKatMetaDataV1 calldata _defaultPreferences) external;
 
-    // --- User-Facing Functions ---
+    // ======= User-Facing Functions =======
 
     /**
      * @notice Sets the preferences for a given vKAT NFT
@@ -110,7 +89,7 @@ interface IVKatMetadata {
      * @notice Returns the address of the vKAT NFT contract
      * @return The address of the vKAT contract
      */
-    function vKat() external view returns (IVKat);
+    function vKat() external view returns (address);
 
     /**
      * @notice Returns the default preferences applied to vKAT NFTs without custom settings

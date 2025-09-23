@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
+import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
+
 import { Base } from "../Base.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { IVotingEscrowCoreErrors } from "@escrow/IVotingEscrowIncreasing_v1_2_0.sol";
 
 contract VaultDepositTest is Base {
+    using ProxyLib for address;
+
     function setUp() public override {
         super.setUp();
 
@@ -15,8 +19,16 @@ contract VaultDepositTest is Base {
     }
 
     function testRevert_IfMasterTokenNotSet() public {
-        AvKATVault newVault =
-            new AvKATVault(address(dao), address(escrow), address(0), address(token), "Test Vault", "TEST");
+        address base = address(new AvKATVault());
+
+        AvKATVault newVault = AvKATVault(
+            base.deployUUPSProxy(
+                abi.encodeCall(
+                    AvKATVault.initialize,
+                    (address(dao), address(escrow), address(0), address(token), "Test Vault", "TEST")
+                )
+            )
+        );
 
         vm.startPrank(alice);
         token.approve(address(newVault), _parseToken(100));

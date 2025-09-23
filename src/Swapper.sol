@@ -25,12 +25,19 @@ import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 contract Swapper is ISwapper, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
+    /// @notice The address of the rewards distributor where swapper can claim tokens.
     IRewardsDistributor public immutable rewardDistributor;
-    address public immutable executor;
-    Escrow public immutable escrow;
-    address public immutable token;
 
-    constructor(address _rewardDistributor, address _escrow, address _executor) public {
+    /// @notice The executor contract Swapper delegates the actions execution to.
+    address public immutable executor;
+
+    /// @notice The escrow contract address
+    Escrow public immutable escrow;
+
+    /// @notice The ERC20 token address escrow uses
+    IERC20 public immutable token;
+
+    constructor(address _rewardDistributor, address _escrow, address _executor) {
         if (_executor == address(0)) {
             revert ZeroAddress();
         }
@@ -38,22 +45,22 @@ contract Swapper is ISwapper, ReentrancyGuard {
         rewardDistributor = IRewardsDistributor(_rewardDistributor);
         executor = _executor;
         escrow = Escrow(_escrow);
-        token = escrow.token();
+        token = IERC20(escrow.token());
     }
 
     /// @inheritdoc ISwapper
     function claimAndSwap(
         Claim calldata _claim,
         Action[] calldata _actions,
-        uint256 _weight
+        uint256 _pct
     )
         public
         nonReentrant
         returns (uint256 diff, uint256 tokenId)
     {
-        // make sure weight is never more than 100.
-        if (_weight > 100) {
-            revert WeightTooBig();
+        // make sure percentage is never more than 100.
+        if (_pct > 100) {
+            revert PctTooBig();
         }
 
         address[] memory users = new address[](_claim.tokens.length);
@@ -67,7 +74,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
         // At this point, this contract holds balances on `_tokens`.
         rewardDistributor.claim(users, _claim.tokens, _claim.amounts, _claim.proofs);
 
-        uint256 beforeAmount = IERC20(token).balanceOf(address(this));
+        uint256 beforeAmount = token.balanceOf(address(this));
 
         // call actions
         (bool success,) = executor.delegatecall(
@@ -77,30 +84,30 @@ contract Swapper is ISwapper, ReentrancyGuard {
             revert ActionsFailed();
         }
 
-        uint256 afterAmount = IERC20(token).balanceOf(address(this));
+        uint256 afterAmount = token.balanceOf(address(this));
 
         diff = afterAmount - beforeAmount;
         Locked memory lock;
 
         // If diff > 0, then kat token balance was increased on this contract.
-        // If weight > 0, create a lock with weight percentage.
+        // If pct > 0, create a lock with percentage.
         // The rest goes to the sender.
         if (diff > 0) {
             uint256 remaining = diff;
-            if (_weight > 0) {
-                lock.amount = (diff * _weight) / 100;
+            if (_pct > 0) {
+                lock.amount = (diff * _pct) / 100;
                 remaining = diff - lock.amount;
 
-                IERC20(token).approve(address(escrow), lock.amount);
+                token.approve(address(escrow), lock.amount);
                 lock.tokenId = escrow.createLockFor(lock.amount, msg.sender);
             }
 
             if (remaining > 0) {
-                IERC20(token).transfer(msg.sender, remaining);
+                token.safeTransfer(msg.sender, remaining);
             }
         }
 
-        emit ClaimAndSwapped(msg.sender, _claim.tokens, _claim.amounts, _weight, lock);
+        emit ClaimAndSwapped(msg.sender, _claim.tokens, _claim.amounts, _pct, lock);
 
         return (diff, lock.tokenId);
     }
