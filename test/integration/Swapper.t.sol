@@ -3,14 +3,11 @@ pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
 import { Base } from "./Base.sol";
-import { MerkleTree } from "@merkl/Distributor.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import { Errors } from "@merkl/utils/Errors.sol";
 import { MockSwap } from "../mocks/MockSwap.sol";
 import { Swapper } from "src/Swapper.sol";
 import { ISwapper } from "src/interfaces/ISwapper.sol";
-
-import { MockERC20 } from "@mocks/MockERC20.sol";
 
 contract SwapperTest is Base {
     function setUp() public override {

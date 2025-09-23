@@ -12,7 +12,8 @@ verbosity=3
 
 fs_permissions = [
     { access = "read", path = "./multisig-members.json" },
-    { access = "write", path = "./artifacts" },
+    { access = "read-write", path = "./temp-addresses.json"},
+    { access = "write", path = "./artifacts" }
 ]
 
 [fmt]

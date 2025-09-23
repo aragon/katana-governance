@@ -22,6 +22,7 @@ import { ProtocolFactory } from "@aragon/protocol-factory/src/ProtocolFactory.so
 import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
 import { PermissionLib } from "@aragon/osx-commons-contracts/src/permission/PermissionLib.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
+import { AccessControlManager } from "@merkl/AccessControlManager.sol";
 
 import { GaugeVoterSetupV1_4_0 as GaugeVoterSetup } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 import { AddressGaugeVoter } from "@voting/AddressGaugeVoter.sol";
@@ -37,6 +38,7 @@ import {
     DeploymentParameters,
     TokenParameters
 } from "@factory/GaugesDaoFactory_v1_4_0.sol";
+import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
 
 import { VKatMetadata } from "src/VKatMetadata.sol";
 import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
@@ -46,147 +48,107 @@ import { Swapper } from "src/Swapper.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
 
 import { MockERC20 } from "@mocks/MockERC20.sol";
-import { deployVault, deploySwapper, deployAutoCompoundStrategy, deployVKatMetadata } from "src/utils/Deployers.sol";
+import {
+    deployVault,
+    deploySwapper,
+    deployAutoCompoundStrategy,
+    deployVKatMetadata,
+    deployMerklDistributor
+} from "src/utils/Deployers.sol";
+
+import {
+    Factory as KatFactory,
+    DeploymentParameters as KatDeploymentParams,
+    Deployment as KatDeployment,
+    BaseContracts
+} from "src/Factory.sol";
 
 contract Deploy is Script {
     using ProxyLib for address;
     using SafeCast for uint256;
 
-    address deployer;
     uint256 deployerPrivateKey = vm.envUint("DEPLOYMENT_PRIVATE_KEY");
-    address merkleDistributor = vm.envAddress("MERKLE_DISTRIBUTOR");
+    address deployer = vm.addr(deployerPrivateKey);
+    string path = "./temp-addresses.json";
+
+    // address merkleDistributor = vm.envAddress("MERKLE_DISTRIBUTOR");
     address executor = vm.envAddress("EXECUTOR");
 
-    function run() public {
-        deployer = vm.addr(deployerPrivateKey);
-        vm.createSelectFork(vm.rpcUrl(vm.envString("RPC")));
-
+    function deployVe() public {
         vm.startBroadcast(deployerPrivateKey);
 
-        DeploymentParameters memory params = getDeploymentParameters();
+        BaseContracts memory bases = BaseContracts({
+            vault: address(new AvKATVault()),
+            autoCompoundStrategy: address(new AutoCompoundStrategy()),
+            merklDistributor: address(new MerklDistributor()),
+            vkatMetadata: address(new VKatMetadata())
+        });
+
+        KatFactory katFactory = new KatFactory(bases);
 
         // ======== Deploys a dao + all the architecture of ve-governance ========
-        VeGovernanceFactory factory = new VeGovernanceFactory(params);
-        factory.deployOnce();
+        DeploymentParameters memory params = getDeploymentParameters(readMultisigMembers(address(katFactory)));
+        VeGovernanceFactory veFactory = new VeGovernanceFactory(params);
+        veFactory.deployOnce();
 
-        DeploymentParameters memory deploymentParameters = factory.getDeploymentParameters();
-        Deployment memory deployment = factory.getDeployment();
+        vm.makePersistent(address(veFactory));
+        vm.makePersistent(address(katFactory));
 
-        VotingEscrow escrow = deployment.gaugeVoterPluginSets[0].votingEscrow;
-
-        // ======== Deploys Vkat Related contracts ========
-
-        // deploy vault...
-        (, address vault) = deployVault(
-            address(deployment.dao),
-            address(escrow),
-            address(0),
-            address(escrow.token()),
-            "Autocompounding veKAT",
-            "avKAT"
-        );
-
-        // deploy swapper
-        address swapper = deploySwapper(merkleDistributor, address(escrow), executor);
-
-        // deploy vkatmetadata
-        (, address vkatMetadata) = deployVKatMetadata(
-            address(deployment.dao),
-            escrow.lockNFT(),
-            new address[](0),
-            IVKatMetadata.VKatMetaDataV1(new uint16[](0), new address[](0))
-        );
-
-        // deploy compound strategy
-        (, address autoCompoundStrategy) =
-            deployAutoCompoundStrategy(address(deployment.dao), address(escrow), swapper, vault, merkleDistributor);
-
-        Action[] memory actions = getActions(
-            address(deployment.dao), vkatMetadata, autoCompoundStrategy, vault, address(deployment.multisigPlugin)
-        );
-
-        Multisig multisig = Multisig(address(deployment.multisigPlugin));
-        multisig.createProposal(
-            bytes("initial proposal"), actions, 0, true, true, uint64(block.timestamp), uint64(block.timestamp + 7 days)
-        );
-
-        printDeploymentSummary(address(factory), deployment, deploymentParameters);
+        // Write katFactory and veFactory in json.
+        string memory json = "root";
+        vm.serializeAddress(json, "katFactory", address(katFactory));
+        string memory finalJson = vm.serializeAddress(json, "veFactory", address(veFactory));
+        vm.writeJson(finalJson, path);
 
         vm.stopBroadcast();
     }
 
-    function getActions(
-        address _dao,
-        address _vkatMetadata,
-        address _compoundStrategy,
-        address _avKatVault,
-        address _multisig
-    )
-        internal
-        view
-        returns (Action[] memory actions)
-    {
-        Action[] memory actions = new Action[](3);
+    function deployKat() public {
+        // Read katFactory and veFactory addresses.
+        string memory jsonContent = vm.readFile(path);
+        KatFactory katFactory = KatFactory(vm.parseJsonAddress(jsonContent, ".katFactory"));
+        VeGovernanceFactory veFactory = VeGovernanceFactory(vm.parseJsonAddress(jsonContent, ".veFactory"));
 
-        PermissionLib.MultiTargetPermission[] memory permissions = new PermissionLib.MultiTargetPermission[](4);
+        vm.startBroadcast(deployerPrivateKey);
 
-        // VKatMetadata permissions
-        permissions[0] = PermissionLib.MultiTargetPermission({
-            operation: PermissionLib.Operation.Grant,
-            where: _vkatMetadata,
-            who: _dao,
-            permissionId: VKatMetadata(_vkatMetadata).ADMIN_ROLE(),
-            condition: PermissionLib.NO_CONDITION
+        DeploymentParameters memory veDeploymentParameters = veFactory.getDeploymentParameters();
+        Deployment memory veDeployment = veFactory.getDeployment();
+        VotingEscrow escrow = veDeployment.gaugeVoterPluginSets[0].votingEscrow;
+
+        address acm = address(new AccessControlManager()).deployUUPSProxy(
+            abi.encodeCall(
+                AccessControlManager.initialize,
+                (0x8bF0280B2557B98532EC21e6c070Dba1bFAaDbf2, 0xe96A819B77A0D54eC5773f079fe5E2A3d84995fC)
+            )
+        );
+
+        // ====== Kat contracts deployment through factory ========
+        KatDeploymentParams memory katParams = KatDeploymentParams({
+            acm: acm,
+            dao: address(veDeployment.dao),
+            escrow: address(escrow),
+            multisigPlugin: address(veDeployment.multisigPlugin),
+            executor: executor
         });
 
-        // compound strategy permissions
-        permissions[1] = PermissionLib.MultiTargetPermission({
-            operation: PermissionLib.Operation.Grant,
-            where: _compoundStrategy,
-            who: _dao,
-            permissionId: AutoCompoundStrategy(_compoundStrategy).AUTOCOMPOUND_STRATEGY_ADMIN_ROLE(),
-            condition: PermissionLib.NO_CONDITION
-        });
+        KatDeployment memory katDeployment = katFactory.deployOnce(katParams);
 
-        // vault permissions
-        permissions[2] = PermissionLib.MultiTargetPermission({
-            operation: PermissionLib.Operation.Grant,
-            where: _avKatVault,
-            who: _dao,
-            permissionId: AvKATVault(_avKatVault).VAULT_ADMIN_ROLE(),
-            condition: PermissionLib.NO_CONDITION
-        });
+        printDeploymentSummary(address(veFactory), veDeployment, veDeploymentParameters, katDeployment);
 
-        permissions[3] = PermissionLib.MultiTargetPermission({
-            operation: PermissionLib.Operation.Grant,
-            where: _avKatVault,
-            who: _dao,
-            permissionId: AvKATVault(_avKatVault).SWEEPER_ROLE(),
-            condition: PermissionLib.NO_CONDITION
-        });
-
-        actions[0].to = _dao;
-        actions[0].data = abi.encodeCall(PermissionManager.applyMultiTargetPermissions, permissions);
-
-        actions[1].to = _avKatVault;
-        actions[1].data = abi.encodeCall(AvKATVault.setStrategy, _compoundStrategy);
-
-        address[] memory addrs = new address[](1);
-        addrs[0] = address(this);
-        actions[2].to = _multisig;
-        actions[2].data = abi.encodeCall(Multisig.removeAddresses, (addrs));
-
-        return actions;
+        vm.stopBroadcast();
     }
 
-    function getDeploymentParameters() public returns (DeploymentParameters memory parameters) {
+    function getDeploymentParameters(address[] memory _multisigMembers)
+        public
+        returns (DeploymentParameters memory parameters)
+    {
         TokenParameters[] memory tokenParameters = getTokenParameters(vm.envOr("MINT_TEST_TOKENS", false));
         GaugeVoterSetup gaugeVoterPluginSetup = deployGaugeVoterPluginSetup();
 
         parameters = DeploymentParameters({
             // Multisig settings
             minApprovals: vm.envUint("MIN_APPROVALS").toUint8(),
-            multisigMembers: readMultisigMembers(),
+            multisigMembers: _multisigMembers,
             multisigMetadata: bytes(vm.envString("MULTISIG_METADATA_URI")),
             // Gauge Voter
             tokenParameters: tokenParameters,
@@ -224,11 +186,11 @@ contract Deploy is Script {
             address(new VotingEscrow()),
             address(new Clock()),
             address(new Lock()),
-            address(new EscrowIVotesAdapter())
+            address(new EscrowIVotesAdapter(coefficients, maxEpoch))
         );
     }
 
-    function readMultisigMembers() public view returns (address[] memory) {
+    function readMultisigMembers(address _account) public view returns (address[] memory) {
         // JSON list of members
         string memory membersFileName = "multisig-members.json";
         string memory path = string.concat(vm.projectRoot(), "/", membersFileName);
@@ -250,7 +212,7 @@ contract Deploy is Script {
             resultWithAddressThis[i] = result[i];
         }
 
-        resultWithAddressThis[resultWithAddressThis.length - 1] = address(this);
+        resultWithAddressThis[resultWithAddressThis.length - 1] = _account;
 
         return resultWithAddressThis;
     }
@@ -260,7 +222,7 @@ contract Deploy is Script {
             // MINT
             console.log("Deploying 2 token contracts (testing)");
 
-            address[] memory multisigMembers = readMultisigMembers();
+            address[] memory multisigMembers = readMultisigMembers(deployer);
             tokenParameters = new TokenParameters[](1);
             tokenParameters[0] = TokenParameters({
                 token: createTestToken(multisigMembers),
@@ -307,7 +269,8 @@ contract Deploy is Script {
     function printDeploymentSummary(
         address _veFactory,
         Deployment memory _veDeployment,
-        DeploymentParameters memory _veDeploymentParams
+        DeploymentParameters memory _veDeploymentParams,
+        KatDeployment memory _katDeployment
     )
         internal
         view
@@ -343,5 +306,12 @@ contract Deploy is Script {
         console.log("Plugin repositories");
         console.log("- Multisig plugin repository (existing):", address(_veDeploymentParams.multisigPluginRepo));
         console.log("- Gauge voter plugin repository:", address(_veDeployment.gaugeVoterPluginRepo));
+
+        console.log("========");
+        console.log("  Vault", _katDeployment.vault);
+        console.log("  Swapper", _katDeployment.swapper);
+        console.log("  CompoundStrategy", _katDeployment.autoCompoundStrategy);
+        console.log("  KatMetadata", _katDeployment.vkatMetadata);
+        console.log("  MerkleDistributor", _katDeployment.merklDistributor);
     }
 }

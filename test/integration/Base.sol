@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
 import "../../src/VKatMetadata.sol";
-import "../../src/interfaces/IVKatMetadata.sol";
+import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
@@ -52,7 +52,7 @@ import { MockSwap } from "../mocks/MockSwap.sol";
 
 import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
 import { Swapper } from "src/Swapper.sol";
-import { deployVault, deploySwapper, deployAutoCompoundStrategy } from "src/utils/Deployers.sol";
+import { deployVault, deploySwapper, deployAutoCompoundStrategy, deployMerklDistributor } from "src/utils/Deployers.sol";
 
 contract Base is ERC721Holder, Test {
     using ProxyLib for address;
@@ -138,14 +138,9 @@ contract Base is ERC721Holder, Test {
 
     // ===== DEPLOY HELPERS ============
     function _deployMerklDistributor() internal {
-        acm = AccessControlManager(
-            address(new AccessControlManager()).deployUUPSProxy(
-                abi.encodeCall(AccessControlManager.initialize, (address(this), alice))
-            )
-        );
-        merklDistributor = MerklDistributor(
-            address(new MerklDistributor()).deployUUPSProxy(abi.encodeCall(MerklDistributor.initialize, acm))
-        );
+        (, address merklDistributor_) = deployMerklDistributor(address(this), alice);
+
+        merklDistributor = MerklDistributor(merklDistributor_);
 
         merkleTree = new MerkleTree();
 
@@ -189,7 +184,7 @@ contract Base is ERC721Holder, Test {
                 address(new VotingEscrow()),
                 address(new Clock()),
                 address(new Lock()),
-                address(new EscrowIVotesAdapter())
+                address(new EscrowIVotesAdapter(coefficients, 0))
             )
         );
 

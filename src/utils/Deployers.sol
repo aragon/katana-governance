@@ -2,6 +2,9 @@
 pragma solidity ^0.8.0;
 
 import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
+import { AccessControlManager } from "@merkl/AccessControlManager.sol";
+import { MerkleTree } from "test/utils/merkle/MerkleTree.sol";
+import { MerkleTree as MerkleTreeStruct, Distributor as MerklDistributor } from "@merkl/Distributor.sol";
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { Swapper } from "src/Swapper.sol";
@@ -67,4 +70,16 @@ function deployVKatMetadata(
     );
 
     return (metadataBase, vkatMetadata);
+}
+
+function deployMerklDistributor(address _aclManager, address _guardian) returns (address, address) {
+    address acm = ProxyLib.deployUUPSProxy(
+        address(new AccessControlManager()), abi.encodeCall(AccessControlManager.initialize, (_aclManager, _guardian))
+    );
+
+    address merklDistributor = ProxyLib.deployUUPSProxy(
+        address(new MerklDistributor()), abi.encodeCall(MerklDistributor.initialize, AccessControlManager(acm))
+    );
+
+    return (acm, merklDistributor);
 }

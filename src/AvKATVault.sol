@@ -16,7 +16,6 @@ import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
 import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
-import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
 
 contract AvKATVault is Initializable, ERC721Holder, ERC4626, DaoAuthorizable {
     /// @notice bytes32 identifier for admin role functions.
