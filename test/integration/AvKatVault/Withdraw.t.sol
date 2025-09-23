@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { Base } from "../Base.sol";
-import { AvKATVault } from "../../../src/AvKATVault.sol";
+import { AvKATVault } from "src/AvKATVault.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
 contract VaultWithdrawTest is Base {
@@ -79,11 +79,11 @@ contract VaultWithdrawTest is Base {
         vm.stopPrank();
 
         // bob withdraws on behalf of alice
-        vm.startPrank(bob);
+        vm.prank(bob);
         vault.withdraw(withdrawAmount, bob, alice);
-        vm.stopPrank();
 
-        assertEq(vault.balanceOf(alice), withdrawAmount);
-        assertEq(vault.allowance(alice, bob), 0);
+        uint256 remaining = depositAmount - withdrawAmount;
+        assertEq(vault.balanceOf(alice), remaining);
+        assertEq(vault.allowance(alice, bob), remaining);
     }
 }

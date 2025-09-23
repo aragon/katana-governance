@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { Base } from "../Base.sol";
-import { AvKATVault } from "../../../src/AvKATVault.sol";
+import { AvKATVault } from "src/AvKATVault.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { IVotingEscrowCoreErrors } from "@escrow/IVotingEscrowIncreasing_v1_2_0.sol";
 
@@ -16,7 +16,7 @@ contract VaultDepositTest is Base {
 
     function testRevert_IfMasterTokenNotSet() public {
         AvKATVault newVault =
-            new AvKATVault(address(dao), address(ivotesAdapter), address(0), address(token), "Test Vault", "TEST");
+            new AvKATVault(address(dao), address(escrow), address(0), address(token), "Test Vault", "TEST");
 
         vm.startPrank(alice);
         token.approve(address(newVault), _parseToken(100));
@@ -106,7 +106,7 @@ contract VaultDepositTest is Base {
     }
 
     function test_DepositsToReceiver() public {
-        address receiver = address(0);
+        address receiver = vm.createWallet("receiver").addr;
 
         uint256 depositAmount = _parseToken(100);
 

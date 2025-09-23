@@ -38,7 +38,7 @@ interface IVKatMetadata {
     // --- Events ---
 
     /// @notice Emitted when a user sets or updates their preferences
-    event PreferencesSet(uint256 indexed tokenId, address indexed owner, VKatMetaDataV1 preferences);
+    event PreferencesSet(address indexed account, VKatMetaDataV1 preferences);
 
     /// @notice Emitted when admin sets/updates the default preferences.
     event DefaultPreferencesSet(VKatMetaDataV1 preferences);
@@ -84,10 +84,9 @@ interface IVKatMetadata {
      * @notice Sets the preferences for a given vKAT NFT
      * @dev The caller must be the owner or approved caller of the _tokenId. Reward token weights are relative and do
      * not need to sum to a specific value
-     * @param _tokenId The ID of the vKAT NFT to update
      * @param _prefs The preference struct containing the desired settings
      */
-    function setPreferences(uint256 _tokenId, VKatMetaDataV1 calldata _prefs) external;
+    function setPreferences(VKatMetaDataV1 calldata _prefs) external;
 
     // --- View Functions ---
 
@@ -95,11 +94,10 @@ interface IVKatMetadata {
      * @notice Retrieves the preferences for a given token, returning defaults if none are set
      * @dev Checks for token existence. If token no longer exists, reverts If custom preferences exist, returns them.
      * Otherwise, returns the system default
-     * @param _tokenId The ID of the vKAT NFT to query
-     * @return The owner of `_tokenId` in question.
-     * @return A VKatMetaDataV1 struct with the token's preferences
+     * @param _account The address for which to return preferences.
+     * @return A VKatMetaDataV1 struct with the account's preferences
      */
-    function getPreferencesOrDefault(uint256 _tokenId) external view returns (address, VKatMetaDataV1 memory);
+    function getPreferencesOrDefault(address _account) external view returns (VKatMetaDataV1 memory);
 
     /**
      * @notice Checks if a token is on the allowed reward tokens list
