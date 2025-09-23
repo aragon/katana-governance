@@ -23,17 +23,8 @@ contract SwapperTest is Base {
         Action[] memory actions = new Action[](0);
         ISwapper.Claim memory input = ISwapper.Claim(new address[](0), new uint256[](0), new bytes32[][](0));
 
-        // if compound is enabled, but weight is 0.
-        vm.expectRevert(ISwapper.InvalidAutoCompoundConfig.selector);
-        swapper.claimAndSwap(input, actions, ISwapper.AutoCompound(true, 0));
-
-        // if compound is disabled, but weight is more than 0.
-        vm.expectRevert(ISwapper.InvalidAutoCompoundConfig.selector);
-        swapper.claimAndSwap(input, actions, ISwapper.AutoCompound(false, 1));
-
-        // weight is too much(more than 100)
-        vm.expectRevert(ISwapper.InvalidAutoCompoundWeight.selector);
-        swapper.claimAndSwap(input, actions, ISwapper.AutoCompound(true, 101));
+        vm.expectRevert(ISwapper.WeightTooBig.selector);
+        swapper.claimAndSwap(input, actions, 101);
     }
 
     function testRevert_IfInvalidProof() public {
@@ -46,7 +37,7 @@ contract SwapperTest is Base {
 
         vm.expectRevert(Errors.InvalidProof.selector);
         vm.prank(alice, alice);
-        swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), new Action[](0), ISwapper.AutoCompound(false, 0));
+        swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), new Action[](0), 0);
     }
 
     // both tokens are swapped into kat but autocompound is false, hence all kat tokens go to the user.
@@ -57,8 +48,8 @@ contract SwapperTest is Base {
         assertEq(token.balanceOf(alice), 0);
         vm.prank(alice, alice);
         vm.expectEmit();
-        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, ISwapper.AutoCompound(false, 0), ISwapper.Locked(0, 0));
-        swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, ISwapper.AutoCompound(false, 0));
+        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, 0, ISwapper.Locked(0, 0));
+        swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, 0);
 
         assertEq(token.balanceOf(alice), 130e18);
     }
@@ -71,14 +62,12 @@ contract SwapperTest is Base {
 
         uint256 weight = 10;
         uint256 lockAmount = (weight * 130e18) / 100;
-        ISwapper.AutoCompound memory autoCompound = ISwapper.AutoCompound(true, weight);
 
         assertEq(token.balanceOf(alice), 0);
         vm.prank(alice, alice);
         vm.expectEmit();
-        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, autoCompound, ISwapper.Locked(2, lockAmount));
-        (uint256 diff, uint256 tokenId) =
-            swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, autoCompound);
+        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, weight, ISwapper.Locked(2, lockAmount));
+        (uint256 diff, uint256 tokenId) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, weight);
 
         assertEq(diff, 130e18);
         assertEq(escrow.locked(tokenId).amount, lockAmount);
@@ -95,13 +84,11 @@ contract SwapperTest is Base {
 
         uint256 weight = 10;
         uint256 lockAmount = (weight * 100e18) / 100;
-        ISwapper.AutoCompound memory autoCompound = ISwapper.AutoCompound(true, weight);
 
         vm.prank(alice, alice);
         vm.expectEmit();
-        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, autoCompound, ISwapper.Locked(2, lockAmount));
-        (uint256 diff, uint256 tokenId) =
-            swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, autoCompound);
+        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, weight, ISwapper.Locked(2, lockAmount));
+        (uint256 diff, uint256 tokenId) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, weight);
 
         assertEq(diff, 100e18);
         assertEq(escrow.locked(tokenId).amount, lockAmount);
@@ -117,9 +104,8 @@ contract SwapperTest is Base {
         assertEq(token.balanceOf(alice), 0);
         vm.prank(alice, alice);
         vm.expectEmit();
-        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, ISwapper.AutoCompound(true, 10), ISwapper.Locked(0, 0));
-        (uint256 diff, uint256 tokenId) =
-            swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, ISwapper.AutoCompound(true, 10));
+        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, 10, ISwapper.Locked(0, 0));
+        (uint256 diff, uint256 tokenId) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, 10);
 
         assertEq(token.balanceOf(alice), 0);
         assertEq(diff, 0);

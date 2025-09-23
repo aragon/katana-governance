@@ -8,17 +8,11 @@ interface ISwapper {
     error NoBalanceChange();
     error ZeroAddress();
     error LengthMismatch();
-    error InvalidAutoCompoundConfig();
-    error InvalidAutoCompoundWeight();
+    error WeightTooBig();
 
     event ClaimAndSwapped(
-        address indexed user, address[] tokens, uint256[] claimAmounts, AutoCompound _autoCompound, Locked locked
+        address indexed user, address[] tokens, uint256[] claimAmounts, uint256 _weight, Locked locked
     );
-
-    struct AutoCompound {
-        bool useAutoCompound;
-        uint256 weight;
-    }
 
     struct Claim {
         address[] tokens;
@@ -33,12 +27,11 @@ interface ISwapper {
 
     /// @param _claim Tokens, their respective amounts to claim and merkle proofs for each.
     /// @param _actions The custom actions used to swap tokens in `_outputToken`.
-    /// @param _autoCompound How much portion of kat to create lock for. Only applicable if
-    ///                     `_autoCompound.useAutoCompound` is set to true.
+    /// @param _weight How much portion of kat to create lock for.
     function claimAndSwap(
         Claim calldata _claim,
         Action[] calldata _actions,
-        AutoCompound calldata _autoCompound
+        uint256 _weight
     )
         external
         returns (uint256 diff, uint256 tokenId);

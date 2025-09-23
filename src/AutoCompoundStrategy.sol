@@ -70,13 +70,10 @@ contract AutoCompoundStrategy is DaoAuthorizable {
         external
         returns (uint256)
     {
-        // Always get whole amount so we can deposit in vault.
-        ISwapper.AutoCompound memory compoundConfig = ISwapper.AutoCompound(false, 0);
-
         // which tokens to claim for with their proofs and amounts.
         ISwapper.Claim memory claimTokens = ISwapper.Claim(_tokens, _amounts, _proofs);
 
-        (uint256 claimedAmount,) = swapper.claimAndSwap(claimTokens, _actions, compoundConfig);
+        (uint256 claimedAmount,) = swapper.claimAndSwap(claimTokens, _actions, 0);
 
         // If claimedAmount is greater than 0, autocompound received some amounts on `token`.
         // Hence automatically deposit it into vault. Requires approval before deposit.
