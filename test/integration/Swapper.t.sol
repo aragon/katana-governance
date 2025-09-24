@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "forge-std/Test.sol";
 import { Base } from "./Base.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import { Errors } from "@merkl/utils/Errors.sol";
 import { MockSwap } from "../mocks/MockSwap.sol";
-import { Swapper } from "src/Swapper.sol";
 import { ISwapper } from "src/interfaces/ISwapper.sol";
 
 contract SwapperTest is Base {
@@ -102,7 +100,7 @@ contract SwapperTest is Base {
         vm.prank(alice, alice);
         vm.expectEmit();
         emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, 10, ISwapper.Locked(0, 0));
-        (uint256 diff, uint256 tokenId) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, 10);
+        (uint256 diff,) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, 10);
 
         assertEq(token.balanceOf(alice), 0);
         assertEq(diff, 0);
@@ -117,6 +115,7 @@ contract SwapperTest is Base {
         address swap2
     )
         internal
+        view
         returns (address[] memory, uint256[] memory, bytes32[][] memory, Action[] memory)
     {
         ClaimInput[] memory input = new ClaimInput[](2);

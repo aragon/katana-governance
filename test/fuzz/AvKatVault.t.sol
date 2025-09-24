@@ -2,9 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { Base } from "../integration/Base.sol";
-import { AvKATVault } from "src/AvKATVault.sol";
-import { PermissionManager } from "@aragon/osx/core/permission/PermissionManager.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 contract VaultWithdrawTest is Base {
     uint256 internal constant userCount = 20;

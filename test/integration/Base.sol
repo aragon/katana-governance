@@ -1,21 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "forge-std/Test.sol";
-import "../../src/VKatMetadata.sol";
-import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import { Test } from "forge-std/Test.sol";
 import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
-import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
-
-import { MockDAO } from "../mocks/MockDAO.sol";
-import { MockVKatERC721 } from "../mocks/MockVKatERC721.sol";
 import { MockERC20 } from "@mocks/MockERC20.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/Executor.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
-import { PermissionManager } from "@aragon/osx/core/permission/PermissionManager.sol";
 
 import { ProtocolFactoryBuilder } from "@aragon/protocol-factory/test/helpers/ProtocolFactoryBuilder.sol";
 import { ProtocolFactory } from "@aragon/protocol-factory/src/ProtocolFactory.sol";
@@ -23,8 +14,7 @@ import {
     GaugesDaoFactoryV1_4_0 as VeGovernanceFactory,
     Deployment,
     DeploymentParameters,
-    TokenParameters,
-    GaugePluginSet
+    TokenParameters
 } from "@factory/GaugesDaoFactory_v1_4_0.sol";
 import { PluginRepoFactory } from "@aragon/osx/framework/plugin/repo/PluginRepoFactory.sol";
 import { PluginSetupProcessor } from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
@@ -189,6 +179,9 @@ contract Base is ERC721Holder, Test {
         );
 
         DeploymentParameters memory parameters = DeploymentParameters({
+            daoExecutor: address(0),
+            daoSubdomain: "",
+            daoMetadataURI: "",
             minApprovals: 1,
             multisigMembers: multisigMembers,
             multisigMetadata: "ipfs://io",

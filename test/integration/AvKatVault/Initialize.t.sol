@@ -4,14 +4,13 @@ pragma solidity ^0.8.17;
 import { Base } from "../Base.sol";
 
 import { AvKATVault } from "src/AvKATVault.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 contract VaultInitializeTest is Base {
     function setUp() public override {
         super.setUp();
     }
 
-    function test_Initialize() public {
+    function test_Initialize() public view {
         assertEq(vault.masterTokenId(), masterTokenId);
     }
 

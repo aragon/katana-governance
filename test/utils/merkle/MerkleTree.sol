@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "./Base.sol";
+import { Base } from "./Base.sol";
 
 /// @notice simple, kinda efficient (and improving!) Merkle proof generator and verifier using complete binary trees.
 /// @author dmfxyz

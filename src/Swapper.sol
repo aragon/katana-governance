@@ -1,24 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-
-import { GaugeVoter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
-import { VotingEscrowV1_2_0 as Escrow } from "@escrow/VotingEscrowIncreasing_v1_2_0.sol";
-
-import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { Executor } from "@aragon/osx-commons-contracts/src/executors/Executor.sol";
+
+import { VotingEscrowV1_2_0 as Escrow } from "@escrow/VotingEscrowIncreasing_v1_2_0.sol";
+
+import { IExecutor } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
 import { ISwapper } from "src/interfaces/ISwapper.sol";
-import { AvKATVault } from "src/AvKATVault.sol";
 import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 
 contract Swapper is ISwapper, ReentrancyGuard {
@@ -77,7 +69,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
 
         // call actions
         (bool success,) = executor.delegatecall(
-            abi.encodeCall(Executor.execute, (bytes32(uint256(uint160(address(this)))), _actions, 0))
+            abi.encodeCall(IExecutor.execute, (bytes32(uint256(uint160(address(this)))), _actions, 0))
         );
         if (!success) {
             revert ActionsFailed();

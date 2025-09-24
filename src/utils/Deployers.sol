@@ -3,8 +3,7 @@ pragma solidity ^0.8.0;
 
 import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
 import { AccessControlManager } from "@merkl/AccessControlManager.sol";
-import { MerkleTree } from "test/utils/merkle/MerkleTree.sol";
-import { MerkleTree as MerkleTreeStruct, Distributor as MerklDistributor } from "@merkl/Distributor.sol";
+import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { Swapper } from "src/Swapper.sol";

@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
 import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
     "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";

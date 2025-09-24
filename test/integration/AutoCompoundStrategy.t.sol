@@ -1,20 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "forge-std/Test.sol";
 import { Base } from "./Base.sol";
-import { MerkleTree } from "@merkl/Distributor.sol";
 import { AddressGaugeVoter as GaugeVoter } from "@voting/AddressGaugeVoter.sol";
 import { IAddressGaugeVote as IGaugeVoter } from "@voting/IAddressGaugeVoter.sol";
 
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import { Errors } from "@merkl/utils/Errors.sol";
 import { MockSwap } from "../mocks/MockSwap.sol";
-
-import { MockERC20 } from "@mocks/MockERC20.sol";
-
-import { Swapper } from "src/Swapper.sol";
-import { ISwapper } from "src/interfaces/ISwapper.sol";
 
 contract AutoCompoundTest is Base {
     function setUp() public override {
@@ -48,7 +40,6 @@ contract AutoCompoundTest is Base {
     }
 
     function test_Votes() public {
-        uint256 vp = ivotesAdapter.getVotes(address(autoCompoundStrategy));
         // To create a master token id, vault starts with already predefined amount.
         // Hence, vault already has assets in it. This means we can vote as vp > 0.
         GaugeVoter.GaugeVote[] memory votes = new IGaugeVoter.GaugeVote[](2);

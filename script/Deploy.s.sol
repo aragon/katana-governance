@@ -5,24 +5,10 @@ import { Script, console2 as console } from "forge-std/Script.sol";
 
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-import {
-    DAOFactory,
-    PluginSetupRef,
-    IPluginSetup,
-    DAO,
-    PluginSetupProcessor
-} from "@aragon/osx/framework/dao/DAOFactory.sol";
+import { PluginSetupProcessor } from "@aragon/osx/framework/dao/DAOFactory.sol";
 import { PluginRepoFactory } from "@aragon/osx/framework/plugin/repo/PluginRepoFactory.sol";
-import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 import { PluginRepo } from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
-import { PermissionManager } from "@aragon/osx/core/permission/PermissionManager.sol";
-import { Multisig } from "@aragon/multisig-plugin/Multisig.sol";
-import { IPlugin } from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
-import { ProtocolFactory } from "@aragon/protocol-factory/src/ProtocolFactory.sol";
 import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
-import { PermissionLib } from "@aragon/osx-commons-contracts/src/permission/PermissionLib.sol";
-import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import { AccessControlManager } from "@merkl/AccessControlManager.sol";
 
 import { GaugeVoterSetupV1_4_0 as GaugeVoterSetup } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 import { AddressGaugeVoter } from "@voting/AddressGaugeVoter.sol";
@@ -38,23 +24,15 @@ import {
     DeploymentParameters,
     TokenParameters
 } from "@factory/GaugesDaoFactory_v1_4_0.sol";
+
+import { AccessControlManager } from "@merkl/AccessControlManager.sol";
 import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
 
 import { VKatMetadata } from "src/VKatMetadata.sol";
-import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
-
 import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
-import { Swapper } from "src/Swapper.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
 
 import { MockERC20 } from "@mocks/MockERC20.sol";
-import {
-    deployVault,
-    deploySwapper,
-    deployAutoCompoundStrategy,
-    deployVKatMetadata,
-    deployMerklDistributor
-} from "src/utils/Deployers.sol";
 
 import {
     Factory as KatFactory,
@@ -69,12 +47,11 @@ contract Deploy is Script {
 
     uint256 deployerPrivateKey = vm.envUint("DEPLOYMENT_PRIVATE_KEY");
     address deployer = vm.addr(deployerPrivateKey);
-    string path = "./temp-addresses.json";
 
     // address merkleDistributor = vm.envAddress("MERKLE_DISTRIBUTOR");
     address executor = vm.envAddress("EXECUTOR");
 
-    function deployVe() public {
+    function run() public {
         vm.startBroadcast(deployerPrivateKey);
 
         BaseContracts memory bases = BaseContracts({
@@ -84,37 +61,22 @@ contract Deploy is Script {
             vkatMetadata: address(new VKatMetadata())
         });
 
+        // Deploy KatFactory first so that during ve deployment (which also deploys the DAO),
+        // we can grant it EXECUTE_PERMISSION on the DAO. This ensures KatFactory has the
+        // authority to assign new permissions for deploying Kat contracts through the DAO.
         KatFactory katFactory = new KatFactory(bases);
 
-        // ======== Deploys a dao + all the architecture of ve-governance ========
-        DeploymentParameters memory params = getDeploymentParameters(readMultisigMembers(address(katFactory)));
+        // Deploy VE
+        DeploymentParameters memory params = getDeploymentParameters(address(katFactory));
         VeGovernanceFactory veFactory = new VeGovernanceFactory(params);
         veFactory.deployOnce();
 
-        vm.makePersistent(address(veFactory));
-        vm.makePersistent(address(katFactory));
-
-        // Write katFactory and veFactory in json.
-        string memory json = "root";
-        vm.serializeAddress(json, "katFactory", address(katFactory));
-        string memory finalJson = vm.serializeAddress(json, "veFactory", address(veFactory));
-        vm.writeJson(finalJson, path);
-
-        vm.stopBroadcast();
-    }
-
-    function deployKat() public {
-        // Read katFactory and veFactory addresses.
-        string memory jsonContent = vm.readFile(path);
-        KatFactory katFactory = KatFactory(vm.parseJsonAddress(jsonContent, ".katFactory"));
-        VeGovernanceFactory veFactory = VeGovernanceFactory(vm.parseJsonAddress(jsonContent, ".veFactory"));
-
-        vm.startBroadcast(deployerPrivateKey);
-
+        // Get VE Deployment Addresses
         DeploymentParameters memory veDeploymentParameters = veFactory.getDeploymentParameters();
         Deployment memory veDeployment = veFactory.getDeployment();
         VotingEscrow escrow = veDeployment.gaugeVoterPluginSets[0].votingEscrow;
 
+        // Deploy OZ's AccessControlManager. This is needed for MerklDistributor contract.
         address acm = address(new AccessControlManager()).deployUUPSProxy(
             abi.encodeCall(
                 AccessControlManager.initialize,
@@ -122,33 +84,34 @@ contract Deploy is Script {
             )
         );
 
-        // ====== Kat contracts deployment through factory ========
+        // Prepare arguments for katana's factory contract.
         KatDeploymentParams memory katParams = KatDeploymentParams({
             acm: acm,
             dao: address(veDeployment.dao),
             escrow: address(escrow),
-            multisigPlugin: address(veDeployment.multisigPlugin),
             executor: executor
         });
 
+        // Deploy all the katana contracts and grab their addresses.
         KatDeployment memory katDeployment = katFactory.deployOnce(katParams);
 
+        // Print all necessary/useful deployment addresses.
         printDeploymentSummary(address(veFactory), veDeployment, veDeploymentParameters, katDeployment);
 
         vm.stopBroadcast();
     }
 
-    function getDeploymentParameters(address[] memory _multisigMembers)
-        public
-        returns (DeploymentParameters memory parameters)
-    {
+    function getDeploymentParameters(address _daoExecutor) public returns (DeploymentParameters memory parameters) {
         TokenParameters[] memory tokenParameters = getTokenParameters(vm.envOr("MINT_TEST_TOKENS", false));
         GaugeVoterSetup gaugeVoterPluginSetup = deployGaugeVoterPluginSetup();
 
         parameters = DeploymentParameters({
+            daoMetadataURI: "",
+            daoSubdomain: "",
+            daoExecutor: _daoExecutor,
             // Multisig settings
             minApprovals: vm.envUint("MIN_APPROVALS").toUint8(),
-            multisigMembers: _multisigMembers,
+            multisigMembers: readMultisigMembers(),
             multisigMetadata: bytes(vm.envString("MULTISIG_METADATA_URI")),
             // Gauge Voter
             tokenParameters: tokenParameters,
@@ -190,7 +153,7 @@ contract Deploy is Script {
         );
     }
 
-    function readMultisigMembers(address _account) public view returns (address[] memory) {
+    function readMultisigMembers() public view returns (address[] memory result) {
         // JSON list of members
         string memory membersFileName = "multisig-members.json";
         string memory path = string.concat(vm.projectRoot(), "/", membersFileName);
@@ -198,23 +161,14 @@ contract Deploy is Script {
 
         bool exists = vm.keyExistsJson(strJson, "$.members");
         if (!exists) {
-            revert("The file pointed by MANAGEMENT_DAO_MEMBERS_FILE_NAME does not contain any members");
+            revert("The file multisig-members.json does not contain any members or doesn't exist");
         }
 
-        address[] memory result = vm.parseJsonAddressArray(strJson, "$.members");
+        result = vm.parseJsonAddressArray(strJson, "$.members");
 
         if (result.length == 0) {
-            revert("The file pointed by MANAGEMENT_DAO_MEMBERS_FILE_NAME needs to contain at least one member");
+            revert("The file multisig-members.json needs to contain at least one member");
         }
-
-        address[] memory resultWithAddressThis = new address[](result.length + 1);
-        for (uint256 i = 0; i < result.length; i++) {
-            resultWithAddressThis[i] = result[i];
-        }
-
-        resultWithAddressThis[resultWithAddressThis.length - 1] = _account;
-
-        return resultWithAddressThis;
     }
 
     function getTokenParameters(bool mintTestTokens) internal returns (TokenParameters[] memory tokenParameters) {
@@ -222,7 +176,7 @@ contract Deploy is Script {
             // MINT
             console.log("Deploying 2 token contracts (testing)");
 
-            address[] memory multisigMembers = readMultisigMembers(deployer);
+            address[] memory multisigMembers = readMultisigMembers();
             tokenParameters = new TokenParameters[](1);
             tokenParameters[0] = TokenParameters({
                 token: createTestToken(multisigMembers),

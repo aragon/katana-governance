@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { ERC20Upgradeable as ERC20 } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import { IERC20Upgradeable as IERC20 } from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import { ERC4626Upgradeable as ERC4626 } from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import { ERC721HolderUpgradeable as ERC721Holder } from
+    "@openzeppelin/contracts-upgradeable/token/ERC721/utils/ERC721HolderUpgradeable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { VotingEscrow, EscrowIVotesAdapter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
@@ -14,8 +14,6 @@ import { VotingEscrow, EscrowIVotesAdapter, Lock as LockNFT } from "@setup/Gauge
 import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
     "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
-
-import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 
 contract AvKATVault is Initializable, ERC721Holder, ERC4626, DaoAuthorizable {
     /// @notice bytes32 identifier for admin role functions.
@@ -89,8 +87,8 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, DaoAuthorizable {
     /// @dev To create master tokenId, another party must transfer
     ///      the existing tokenId to this contract and then `initialize`
     ///      must be called. This is needed as at the deployment time,
-    ///      we don't know the address of `AvKATVault` contract, hence
-    ///      we can't transfer the token before deployment.
+    ///      we might not have caller to have the lock position already
+    ///      created on escrow, so it can be done at a later time.
     function initializeMasterTokenId(uint256 _tokenId) external reinitializer(2) {
         address owner = lockNft.ownerOf(_tokenId);
         if (owner != address(this)) {
@@ -107,6 +105,8 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, DaoAuthorizable {
         _mint(address(1), escrow.locked(_tokenId).amount);
     }
 
+    /// @notice Allows to change a strategy contract.
+    /// @param _strategy The new strategy contract.
     function setStrategy(address _strategy) public auth(VAULT_ADMIN_ROLE) {
         _setStrategy(_strategy);
     }
@@ -134,10 +134,11 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, DaoAuthorizable {
         internal
         virtual
         override
+        masterTokenSet
     {
-        // if (_caller != _owner) {
-        //     _spendAllowance(_owner, _caller, _shares);
-        // }
+        if (_caller != _owner) {
+            _spendAllowance(_owner, _caller, _shares);
+        }
 
         _burn(_owner, _shares);
         uint256 newTokenId = escrow.split(masterTokenId, _assets);
@@ -203,6 +204,8 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, DaoAuthorizable {
     }
 
     /// @notice send veNFT mistakenly transferred to `_receiver`.
+    /// @dev If veNFT was depositted through `depositToken`, it would
+    ///      be merged, hence such veNFTs can not be recovered.
     function recoverNFT(uint256 _tokenId, address _receiver) external auth(SWEEPER_ROLE) {
         if (_tokenId == masterTokenId) {
             revert CannotTransferMasterToken();

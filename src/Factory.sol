@@ -1,45 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { ERC20Upgradeable as ERC20 } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import { IERC20Upgradeable as IERC20 } from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import { ERC4626Upgradeable as ERC4626 } from
-    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { PermissionLib } from "@aragon/osx-commons-contracts/src/permission/PermissionLib.sol";
 import { PermissionManager } from "@aragon/osx/core/permission/PermissionManager.sol";
 
-import { VotingEscrow, EscrowIVotesAdapter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
+import { VotingEscrow } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import { Multisig } from "@aragon/multisig-plugin/Multisig.sol";
+import { DAO } from "@aragon/osx/core/dao/DAO.sol";
 
-import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
-    "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
-import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
 import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
 import { AccessControlManager } from "@merkl/AccessControlManager.sol";
 
-import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
-import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
-import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
-import { MockERC20 } from "@mocks/MockERC20.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
 import { VKatMetadata } from "src/VKatMetadata.sol";
 import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
-
 import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
-import { Swapper } from "src/Swapper.sol";
 
-import {
-    deployVault,
-    deploySwapper,
-    deployAutoCompoundStrategy,
-    deployVKatMetadata,
-    deployMerklDistributor
-} from "src/utils/Deployers.sol";
+import { MockERC20 } from "@mocks/MockERC20.sol";
+
+import { deploySwapper } from "src/utils/Deployers.sol";
 
 struct BaseContracts {
     address merklDistributor;
@@ -53,7 +33,6 @@ struct DeploymentParameters {
     address dao;
     address escrow;
     address executor;
-    address multisigPlugin;
 }
 
 struct Deployment {
@@ -68,7 +47,6 @@ contract Factory {
     using ProxyLib for address;
 
     address private owner;
-
     BaseContracts internal bases;
 
     DeploymentParameters parameters;
@@ -82,7 +60,11 @@ contract Factory {
 
     function deployOnce(DeploymentParameters memory _params) public returns (Deployment memory) {
         if (owner != msg.sender) {
-            revert("NotOwner");
+            revert("NOT_OWNER");
+        }
+
+        if (deps.vault != address(0)) {
+            revert("ALREADY_DEPLOYED");
         }
 
         // ======== Deploys Vkat Related contracts ========
@@ -133,28 +115,14 @@ contract Factory {
             )
         );
 
-        Action[] memory actions = getActions(_params.dao, deps, _params.multisigPlugin);
-
-        Multisig multisig = Multisig(address(_params.multisigPlugin));
-        multisig.createProposal(
-            bytes("initial proposal"), actions, 0, true, true, uint64(block.timestamp), uint64(block.timestamp + 7 days)
-        );
+        Action[] memory actions = getActions(_params.dao, deps);
+        DAO(payable(_params.dao)).execute(bytes32(uint256(uint160(address(this)))), actions, 0);
 
         return deps;
     }
 
-    function getActions(
-        address _dao,
-        Deployment memory _deps,
-        address _multisig
-    )
-        internal
-        view
-        returns (Action[] memory actions)
-    {
-        Action[] memory actions = new Action[](3);
-
-        PermissionLib.MultiTargetPermission[] memory permissions = new PermissionLib.MultiTargetPermission[](4);
+    function getActions(address _dao, Deployment memory _deps) internal view returns (Action[] memory) {
+        PermissionLib.MultiTargetPermission[] memory permissions = new PermissionLib.MultiTargetPermission[](5);
 
         // VKatMetadata permissions
         permissions[0] = PermissionLib.MultiTargetPermission({
@@ -191,16 +159,24 @@ contract Factory {
             condition: PermissionLib.NO_CONDITION
         });
 
+        // This factory needs execute permission on dao to work.
+        // This revokes execute permission as all other work
+        // has been done at this point.
+        permissions[4] = PermissionLib.MultiTargetPermission({
+            operation: PermissionLib.Operation.Revoke,
+            where: _dao,
+            who: address(this),
+            permissionId: DAO(payable(_dao)).EXECUTE_PERMISSION_ID(),
+            condition: PermissionLib.NO_CONDITION
+        });
+
+        Action[] memory actions = new Action[](2);
+
         actions[0].to = _dao;
         actions[0].data = abi.encodeCall(PermissionManager.applyMultiTargetPermissions, permissions);
 
         actions[1].to = _deps.vault;
         actions[1].data = abi.encodeCall(AvKATVault.setStrategy, _deps.autoCompoundStrategy);
-
-        address[] memory addrs = new address[](1);
-        addrs[0] = address(this);
-        actions[2].to = _multisig;
-        actions[2].data = abi.encodeCall(Multisig.removeAddresses, (addrs));
 
         return actions;
     }

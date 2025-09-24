@@ -5,7 +5,6 @@ import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/Pro
 
 import { Base } from "../Base.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
-import { console2 as console } from "forge-std/console2.sol";
 import { IVotingEscrowCoreErrors } from "@escrow/IVotingEscrowIncreasing_v1_2_0.sol";
 
 contract VaultDepositTest is Base {
@@ -53,7 +52,7 @@ contract VaultDepositTest is Base {
     function testRevert_DepositsToZeroReceiver() public {
         vm.prank(alice);
         vm.expectRevert();
-        uint256 shares = vault.deposit(_parseToken(100), address(0));
+        vault.deposit(_parseToken(100), address(0));
     }
 
     function testRevert_IfZeroAmount() public {
@@ -61,7 +60,7 @@ contract VaultDepositTest is Base {
         vault.deposit(0, alice);
     }
 
-    function test_vaultEmpty() public {
+    function test_vaultEmpty() public view {
         uint256 amount = escrow.locked(masterTokenId).amount;
 
         assertEq(vault.totalAssets(), amount);

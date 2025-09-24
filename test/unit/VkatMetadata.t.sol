@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "forge-std/Test.sol";
-import "../src/VKatMetadata.sol";
-import "../src/interfaces/IVKatMetadata.sol";
-import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import { Test } from "forge-std/Test.sol";
+import { VKatMetadata } from "src/VKatMetadata.sol";
+import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
 
-import { MockDAO } from "./mocks/MockDAO.sol";
-import { MockVKatERC721 } from "./mocks/MockVKatERC721.sol";
+import { MockDAO } from "test/mocks/MockDAO.sol";
+import { MockVKatERC721 } from "test/mocks/MockVKatERC721.sol";
 
 contract VKatMetadataTest is Test {
     VKatMetadata public implementation;
