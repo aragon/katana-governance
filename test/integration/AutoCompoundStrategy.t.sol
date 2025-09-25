@@ -6,7 +6,11 @@ import { AddressGaugeVoter as GaugeVoter } from "@voting/AddressGaugeVoter.sol";
 import { IAddressGaugeVote as IGaugeVoter } from "@voting/IAddressGaugeVoter.sol";
 
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import { MockSwap } from "../mocks/MockSwap.sol";
+import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
+
+import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
+
+import { MockSwap } from "test/mocks/MockSwap.sol";
 
 contract AutoCompoundTest is Base {
     function setUp() public override {
@@ -70,6 +74,33 @@ contract AutoCompoundTest is Base {
         // We voted manually, so new votes for each gauge must be bigger.
         assertGt(voter.votes(address(autoCompoundStrategy), gaugeA), gaugeAVotesBefore);
         assertGt(voter.votes(address(autoCompoundStrategy), gaugeB), gaugeBVotesBefore);
+    }
+
+    // ============= Upgrade Tests =============
+
+    function testRevert_UpgradeUnauthorized() public {
+        address newImplementation = address(new AutoCompoundStrategy());
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DaoUnauthorized.selector,
+                address(dao),
+                address(autoCompoundStrategy),
+                address(alice),
+                AutoCompoundStrategy(newImplementation).AUTOCOMPOUND_STRATEGY_ADMIN_ROLE()
+            )
+        );
+        vm.prank(alice);
+        autoCompoundStrategy.upgradeTo(newImplementation);
+    }
+
+    function test_UpgradeAuthorized() public {
+        address newImplementation = address(new AutoCompoundStrategy());
+
+        // Upgrade should succeed
+        autoCompoundStrategy.upgradeTo(address(newImplementation));
+
+        assertEq(autoCompoundStrategy.implementation(), address(newImplementation));
     }
 
     function claimAndSwapParams(

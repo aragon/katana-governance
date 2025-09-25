@@ -25,9 +25,6 @@ import {
     TokenParameters
 } from "@factory/GaugesDaoFactory_v1_4_0.sol";
 
-import { AccessControlManager } from "@merkl/AccessControlManager.sol";
-import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
-
 import { VKatMetadata } from "src/VKatMetadata.sol";
 import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
@@ -48,7 +45,7 @@ contract Deploy is Script {
     uint256 deployerPrivateKey = vm.envUint("DEPLOYMENT_PRIVATE_KEY");
     address deployer = vm.addr(deployerPrivateKey);
 
-    // address merkleDistributor = vm.envAddress("MERKLE_DISTRIBUTOR");
+    address merkleDistributor = vm.envAddress("MERKL_DISTRIBUTOR");
     address executor = vm.envAddress("EXECUTOR");
 
     function run() public {
@@ -57,7 +54,6 @@ contract Deploy is Script {
         BaseContracts memory bases = BaseContracts({
             vault: address(new AvKATVault()),
             autoCompoundStrategy: address(new AutoCompoundStrategy()),
-            merklDistributor: address(new MerklDistributor()),
             vkatMetadata: address(new VKatMetadata())
         });
 
@@ -76,17 +72,9 @@ contract Deploy is Script {
         Deployment memory veDeployment = veFactory.getDeployment();
         VotingEscrow escrow = veDeployment.gaugeVoterPluginSets[0].votingEscrow;
 
-        // Deploy OZ's AccessControlManager. This is needed for MerklDistributor contract.
-        address acm = address(new AccessControlManager()).deployUUPSProxy(
-            abi.encodeCall(
-                AccessControlManager.initialize,
-                (0x8bF0280B2557B98532EC21e6c070Dba1bFAaDbf2, 0xe96A819B77A0D54eC5773f079fe5E2A3d84995fC)
-            )
-        );
-
         // Prepare arguments for katana's factory contract.
         KatDeploymentParams memory katParams = KatDeploymentParams({
-            acm: acm,
+            merklDistributor: merkleDistributor,
             dao: address(veDeployment.dao),
             escrow: address(escrow),
             executor: executor
@@ -96,7 +84,9 @@ contract Deploy is Script {
         KatDeployment memory katDeployment = katFactory.deployOnce(katParams);
 
         // Print all necessary/useful deployment addresses.
-        printDeploymentSummary(address(veFactory), veDeployment, veDeploymentParameters, katDeployment);
+        printDeploymentSummary(
+            address(veFactory), address(katFactory), veDeployment, veDeploymentParameters, katDeployment
+        );
 
         vm.stopBroadcast();
     }
@@ -222,6 +212,7 @@ contract Deploy is Script {
 
     function printDeploymentSummary(
         address _veFactory,
+        address _katFactory,
         Deployment memory _veDeployment,
         DeploymentParameters memory _veDeploymentParams,
         KatDeployment memory _katDeployment
@@ -232,7 +223,8 @@ contract Deploy is Script {
         console.log("");
         console.log("Deployed from: ", deployer);
         console.log("Chain ID:", block.chainid);
-        console.log("Factory:", address(_veFactory));
+        console.log("VeFactory:", address(_veFactory));
+        console.log("KatFactory:", address(_katFactory));
         console.log("");
         console.log("DAO:", address(_veDeployment.dao));
         console.log("");
@@ -266,6 +258,5 @@ contract Deploy is Script {
         console.log("  Swapper", _katDeployment.swapper);
         console.log("  CompoundStrategy", _katDeployment.autoCompoundStrategy);
         console.log("  KatMetadata", _katDeployment.vkatMetadata);
-        console.log("  MerkleDistributor", _katDeployment.merklDistributor);
     }
 }

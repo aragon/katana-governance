@@ -154,5 +154,6 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizable, UUPSUpgradeable {
         return _getImplementation();
     }
 
+    /// @dev Reserved storage space to allow for layout changes in the future.
     uint256[45] private __gap;
 }

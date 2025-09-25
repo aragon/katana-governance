@@ -3,11 +3,13 @@ pragma solidity ^0.8.17;
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import { VotingEscrow, GaugeVoter } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 
 import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
     "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
+
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
@@ -16,7 +18,7 @@ import { Swapper } from "src/Swapper.sol";
 import { ISwapper } from "src/interfaces/ISwapper.sol";
 import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 
-contract AutoCompoundStrategy is Initializable, DaoAuthorizable {
+contract AutoCompoundStrategy is Initializable, UUPSUpgradeable, DaoAuthorizable {
     ///@notice The bytes32 identifier for admin role functions.
     bytes32 public constant AUTOCOMPOUND_STRATEGY_ADMIN_ROLE = keccak256("AUTOCOMPOUND_STRATEGY_ADMIN_ROLE");
 
@@ -95,4 +97,14 @@ contract AutoCompoundStrategy is Initializable, DaoAuthorizable {
 
         return 0;
     }
+
+    // =========== Upgrade Related Functions ===========
+    function _authorizeUpgrade(address) internal override auth(AUTOCOMPOUND_STRATEGY_ADMIN_ROLE) { }
+
+    function implementation() external view returns (address) {
+        return _getImplementation();
+    }
+
+    /// @dev Reserved storage space to allow for layout changes in the future.
+    uint256[46] private __gap;
 }

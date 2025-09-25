@@ -22,21 +22,19 @@ import { MockERC20 } from "@mocks/MockERC20.sol";
 import { deploySwapper } from "src/utils/Deployers.sol";
 
 struct BaseContracts {
-    address merklDistributor;
     address vault;
     address autoCompoundStrategy;
     address vkatMetadata;
 }
 
 struct DeploymentParameters {
-    address acm;
+    address merklDistributor;
     address dao;
     address escrow;
     address executor;
 }
 
 struct Deployment {
-    address merklDistributor;
     address vault;
     address autoCompoundStrategy;
     address swapper;
@@ -69,16 +67,6 @@ contract Factory {
 
         // ======== Deploys Vkat Related contracts ========
 
-        deps.merklDistributor = bases.merklDistributor.deployUUPSProxy(
-            abi.encodeCall(MerklDistributor.initialize, AccessControlManager(_params.acm))
-        );
-
-        address tokenA = address(new MockERC20());
-        address tokenB = address(new MockERC20());
-        address tokenC = address(new MockERC20());
-        MockERC20(tokenA).mint(address(deps.merklDistributor), 1000e18);
-        MockERC20(tokenB).mint(address(deps.merklDistributor), 1000e18);
-
         deps.vault = bases.vault.deployUUPSProxy(
             abi.encodeCall(
                 AvKATVault.initialize,
@@ -94,7 +82,7 @@ contract Factory {
         );
 
         // deploy swapper
-        deps.swapper = deploySwapper(deps.merklDistributor, _params.escrow, _params.executor);
+        deps.swapper = deploySwapper(_params.merklDistributor, _params.escrow, _params.executor);
 
         deps.vkatMetadata = bases.vkatMetadata.deployUUPSProxy(
             abi.encodeCall(
@@ -111,7 +99,7 @@ contract Factory {
         deps.autoCompoundStrategy = bases.autoCompoundStrategy.deployUUPSProxy(
             abi.encodeCall(
                 AutoCompoundStrategy.initialize,
-                (_params.dao, _params.escrow, deps.swapper, deps.vault, deps.merklDistributor)
+                (_params.dao, _params.escrow, deps.swapper, deps.vault, _params.merklDistributor)
             )
         );
 

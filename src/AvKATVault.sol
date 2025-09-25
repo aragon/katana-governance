@@ -7,6 +7,8 @@ import { ERC4626Upgradeable as ERC4626 } from
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { ERC721HolderUpgradeable as ERC721Holder } from
     "@openzeppelin/contracts-upgradeable/token/ERC721/utils/ERC721HolderUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { VotingEscrow, EscrowIVotesAdapter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
@@ -15,7 +17,7 @@ import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
     "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
-contract AvKATVault is Initializable, ERC721Holder, ERC4626, DaoAuthorizable {
+contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, DaoAuthorizable {
     /// @notice bytes32 identifier for admin role functions.
     bytes32 public constant VAULT_ADMIN_ROLE = keccak256("VAULT_ADMIN_ROLE");
 
@@ -232,4 +234,14 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, DaoAuthorizable {
 
         emit StrategySet(_strategy);
     }
+
+    // =========== Upgrade Related Functions ===========
+    function _authorizeUpgrade(address) internal override auth(VAULT_ADMIN_ROLE) { }
+
+    function implementation() external view returns (address) {
+        return _getImplementation();
+    }
+
+    /// @dev Reserved storage space to allow for layout changes in the future.
+    uint256[45] private __gap;
 }

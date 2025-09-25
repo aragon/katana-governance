@@ -354,16 +354,6 @@ contract VKatMetadataTest is Test {
 
     // ============= Upgrade Tests =============
 
-    function testRevert_UpgradeAuthorized() public prankAdmin {
-        // Deploy new implementation
-        VKatMetadata newImplementation = new VKatMetadata();
-
-        // Upgrade should succeed
-        metadata.upgradeTo(address(newImplementation));
-
-        assertEq(metadata.implementation(), address(newImplementation));
-    }
-
     function testRevert_UpgradeUnauthorized() public {
         address newImplementation = address(new VKatMetadata());
 
@@ -374,6 +364,16 @@ contract VKatMetadataTest is Test {
         );
         vm.prank(alice);
         metadata.upgradeTo(newImplementation);
+    }
+
+    function test_UpgradeAuthorized() public prankAdmin {
+        // Deploy new implementation
+        VKatMetadata newImplementation = new VKatMetadata();
+
+        // Upgrade should succeed
+        metadata.upgradeTo(address(newImplementation));
+
+        assertEq(metadata.implementation(), address(newImplementation));
     }
 
     // ============= Fuzz Tests =============
