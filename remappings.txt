@@ -1,9 +1,6 @@
-@aragon/protocol-factory/=lib/protocol-factory/
 @clock/=lib/ve-governance/src/clock/
 @curve/=lib/ve-governance/src/curve/
 @delegation/=lib/ve-governance/src/delegation/
-@ensdomains/buffer/=lib/protocol-factory/lib/buffer/
-@ensdomains/ens-contracts/=lib/protocol-factory/lib/ens-contracts/
 @escrow-interfaces/=lib/ve-governance/src/escrow/increasing/interfaces/
 @escrow/=lib/ve-governance/src/escrow/
 @factory/=lib/ve-governance/src/factory/
@@ -15,7 +12,6 @@
 @mocks/=lib/ve-governance/test/mocks/
 @openzeppelin/contracts-upgradeable/=lib/ve-governance/lib/openzeppelin-contracts-upgradeable/contracts/
 @openzeppelin/contracts/=lib/ve-governance/lib/openzeppelin-contracts/contracts/
-@openzeppelin/openzeppelin-foundry-upgrades/=lib/staged-proposal-processor-plugin/node_modules/@openzeppelin/openzeppelin-foundry-upgrades/src/
 @queue/=lib/ve-governance/src/queue/
 @setup/=lib/ve-governance/src/setup/
 @solmate/=lib/ve-governance/lib/solmate/src/
@@ -23,10 +19,12 @@
 @voting/=lib/ve-governance/src/voting/
 @ve/=lib/ve-governance/src/
 
+@aragon/protocol-factory/=lib/protocol-factory/
+@openzeppelin/openzeppelin-foundry-upgrades/=lib/staged-proposal-processor-plugin/node_modules/@openzeppelin/openzeppelin-foundry-upgrades/src/
+@ensdomains/buffer/=lib/protocol-factory/lib/buffer/
+@ensdomains/ens-contracts/=lib/protocol-factory/lib/ens-contracts/
+@merkl/=lib/merkl/contracts/
+
 @aragon/osx-commons-contracts/=lib/osx-commons/contracts/
-
-
 @aragon/osx/=lib/ve-governance/lib/osx/packages/contracts/src/
-
-
 @aragon/multisig-plugin/=lib/protocol-factory/lib/multisig-plugin/packages/contracts/src/

@@ -5,25 +5,12 @@ import { Script, console2 as console } from "forge-std/Script.sol";
 
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-import {
-    DAOFactory,
-    PluginSetupRef,
-    IPluginSetup,
-    DAO,
-    PluginSetupProcessor
-} from "@aragon/osx/framework/dao/DAOFactory.sol";
+import { PluginSetupProcessor } from "@aragon/osx/framework/dao/DAOFactory.sol";
 import { PluginRepoFactory } from "@aragon/osx/framework/plugin/repo/PluginRepoFactory.sol";
-
-import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
-
 import { PluginRepo } from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
-import { Multisig } from "@aragon/multisig-plugin/Multisig.sol";
+import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
 
-import { IPlugin } from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
-
-import { ProtocolFactory } from "@aragon/protocol-factory/src/ProtocolFactory.sol";
 import { GaugeVoterSetupV1_4_0 as GaugeVoterSetup } from "@setup/GaugeVoterSetup_v1_4_0.sol";
-
 import { AddressGaugeVoter } from "@voting/AddressGaugeVoter.sol";
 import { LinearIncreasingCurve as Curve } from "@curve/LinearIncreasingCurve.sol";
 import { DynamicExitQueue as ExitQueue } from "@queue/DynamicExitQueue.sol";
@@ -31,7 +18,6 @@ import { VotingEscrowV1_2_0 as VotingEscrow } from "@escrow/VotingEscrowIncreasi
 import { ClockV1_2_0 as Clock } from "@clock/Clock_v1_2_0.sol";
 import { LockV1_2_0 as Lock } from "@lock/Lock_v1_2_0.sol";
 import { EscrowIVotesAdapter } from "@delegation/EscrowIVotesAdapter.sol";
-// import { VeFactory, DeploymentParameters, Deployment, TokenParameters } from "../src/VeFactory.sol";
 import {
     GaugesDaoFactoryV1_4_0 as VeGovernanceFactory,
     Deployment,
@@ -39,37 +25,80 @@ import {
     TokenParameters
 } from "@factory/GaugesDaoFactory_v1_4_0.sol";
 
+import { VKatMetadata } from "src/VKatMetadata.sol";
+import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
+import { AvKATVault } from "src/AvKATVault.sol";
+
 import { MockERC20 } from "@mocks/MockERC20.sol";
 
+import {
+    Factory as KatFactory,
+    DeploymentParameters as KatDeploymentParams,
+    Deployment as KatDeployment,
+    BaseContracts
+} from "src/Factory.sol";
+
 contract Deploy is Script {
-    // using ProxyLib for address;
+    using ProxyLib for address;
     using SafeCast for uint256;
 
-    address deployer;
     uint256 deployerPrivateKey = vm.envUint("DEPLOYMENT_PRIVATE_KEY");
+    address deployer = vm.addr(deployerPrivateKey);
+
+    address merkleDistributor = vm.envAddress("MERKL_DISTRIBUTOR");
+    address executor = vm.envAddress("EXECUTOR");
 
     function run() public {
-        deployer = vm.addr(deployerPrivateKey);
-        vm.createSelectFork(vm.rpcUrl(vm.envString("RPC")));
-
         vm.startBroadcast(deployerPrivateKey);
 
-        DeploymentParameters memory params = getDeploymentParameters();
+        BaseContracts memory bases = BaseContracts({
+            vault: address(new AvKATVault()),
+            autoCompoundStrategy: address(new AutoCompoundStrategy()),
+            vkatMetadata: address(new VKatMetadata())
+        });
 
-        // Deploys a dao + all the architecture of ve-governance.
-        VeGovernanceFactory factory = new VeGovernanceFactory(params);
-        factory.deployOnce();
+        // Deploy KatFactory first so that during ve deployment (which also deploys the DAO),
+        // we can grant it EXECUTE_PERMISSION on the DAO. This ensures KatFactory has the
+        // authority to assign new permissions for deploying Kat contracts through the DAO.
+        KatFactory katFactory = new KatFactory(bases);
 
-        printDeploymentSummary(factory);
+        // Deploy VE
+        DeploymentParameters memory params = getDeploymentParameters(address(katFactory));
+        VeGovernanceFactory veFactory = new VeGovernanceFactory(params);
+        veFactory.deployOnce();
+
+        // Get VE Deployment Addresses
+        DeploymentParameters memory veDeploymentParameters = veFactory.getDeploymentParameters();
+        Deployment memory veDeployment = veFactory.getDeployment();
+        VotingEscrow escrow = veDeployment.gaugeVoterPluginSets[0].votingEscrow;
+
+        // Prepare arguments for katana's factory contract.
+        KatDeploymentParams memory katParams = KatDeploymentParams({
+            merklDistributor: merkleDistributor,
+            dao: address(veDeployment.dao),
+            escrow: address(escrow),
+            executor: executor
+        });
+
+        // Deploy all the katana contracts and grab their addresses.
+        KatDeployment memory katDeployment = katFactory.deployOnce(katParams);
+
+        // Print all necessary/useful deployment addresses.
+        printDeploymentSummary(
+            address(veFactory), address(katFactory), veDeployment, veDeploymentParameters, katDeployment
+        );
 
         vm.stopBroadcast();
     }
 
-    function getDeploymentParameters() public returns (DeploymentParameters memory parameters) {
+    function getDeploymentParameters(address _daoExecutor) public returns (DeploymentParameters memory parameters) {
         TokenParameters[] memory tokenParameters = getTokenParameters(vm.envOr("MINT_TEST_TOKENS", false));
         GaugeVoterSetup gaugeVoterPluginSetup = deployGaugeVoterPluginSetup();
 
         parameters = DeploymentParameters({
+            daoMetadataURI: "",
+            daoSubdomain: "",
+            daoExecutor: _daoExecutor,
             // Multisig settings
             minApprovals: vm.envUint("MIN_APPROVALS").toUint8(),
             multisigMembers: readMultisigMembers(),
@@ -110,7 +139,7 @@ contract Deploy is Script {
             address(new VotingEscrow()),
             address(new Clock()),
             address(new Lock()),
-            address(new EscrowIVotesAdapter())
+            address(new EscrowIVotesAdapter(coefficients, maxEpoch))
         );
     }
 
@@ -122,13 +151,13 @@ contract Deploy is Script {
 
         bool exists = vm.keyExistsJson(strJson, "$.members");
         if (!exists) {
-            revert("The file pointed by MANAGEMENT_DAO_MEMBERS_FILE_NAME does not contain any members");
+            revert("The file multisig-members.json does not contain any members or doesn't exist");
         }
 
         result = vm.parseJsonAddressArray(strJson, "$.members");
 
         if (result.length == 0) {
-            revert("The file pointed by MANAGEMENT_DAO_MEMBERS_FILE_NAME needs to contain at least one member");
+            revert("The file multisig-members.json needs to contain at least one member");
         }
     }
 
@@ -181,31 +210,38 @@ contract Deploy is Script {
         return address(newToken);
     }
 
-    function printDeploymentSummary(VeGovernanceFactory factory) internal view {
-        DeploymentParameters memory deploymentParameters = factory.getDeploymentParameters();
-        Deployment memory deployment = factory.getDeployment();
-
+    function printDeploymentSummary(
+        address _veFactory,
+        address _katFactory,
+        Deployment memory _veDeployment,
+        DeploymentParameters memory _veDeploymentParams,
+        KatDeployment memory _katDeployment
+    )
+        internal
+        view
+    {
         console.log("");
         console.log("Deployed from: ", deployer);
         console.log("Chain ID:", block.chainid);
-        console.log("Factory:", address(factory));
+        console.log("VeFactory:", address(_veFactory));
+        console.log("KatFactory:", address(_katFactory));
         console.log("");
-        console.log("DAO:", address(deployment.dao));
+        console.log("DAO:", address(_veDeployment.dao));
         console.log("");
 
         console.log("Plugins");
-        console.log("- Multisig plugin:", address(deployment.multisigPlugin));
+        console.log("- Multisig plugin:", address(_veDeployment.multisigPlugin));
         console.log("");
 
-        for (uint256 i = 0; i < deployment.gaugeVoterPluginSets.length;) {
-            console.log("- Using token:", address(deploymentParameters.tokenParameters[i].token));
-            console.log("  Gauge voter plugin:", address(deployment.gaugeVoterPluginSets[i].plugin));
-            console.log("  Curve:", address(deployment.gaugeVoterPluginSets[i].curve));
-            console.log("  Exit Queue:", address(deployment.gaugeVoterPluginSets[i].exitQueue));
-            console.log("  Voting Escrow:", address(deployment.gaugeVoterPluginSets[i].votingEscrow));
-            console.log("  Clock:", address(deployment.gaugeVoterPluginSets[i].clock));
-            console.log("  NFT Lock:", address(deployment.gaugeVoterPluginSets[i].nftLock));
-            console.log("  Escrow IVotes Adapter:", address(deployment.gaugeVoterPluginSets[i].delegationAdapter));
+        for (uint256 i = 0; i < _veDeployment.gaugeVoterPluginSets.length;) {
+            console.log("- Using token:", address(_veDeploymentParams.tokenParameters[i].token));
+            console.log("  Gauge voter plugin:", address(_veDeployment.gaugeVoterPluginSets[i].plugin));
+            console.log("  Curve:", address(_veDeployment.gaugeVoterPluginSets[i].curve));
+            console.log("  Exit Queue:", address(_veDeployment.gaugeVoterPluginSets[i].exitQueue));
+            console.log("  Voting Escrow:", address(_veDeployment.gaugeVoterPluginSets[i].votingEscrow));
+            console.log("  Clock:", address(_veDeployment.gaugeVoterPluginSets[i].clock));
+            console.log("  NFT Lock:", address(_veDeployment.gaugeVoterPluginSets[i].nftLock));
+            console.log("  Escrow IVotes Adapter:", address(_veDeployment.gaugeVoterPluginSets[i].delegationAdapter));
             console.log("");
 
             unchecked {
@@ -214,7 +250,13 @@ contract Deploy is Script {
         }
 
         console.log("Plugin repositories");
-        console.log("- Multisig plugin repository (existing):", address(deploymentParameters.multisigPluginRepo));
-        console.log("- Gauge voter plugin repository:", address(deployment.gaugeVoterPluginRepo));
+        console.log("- Multisig plugin repository (existing):", address(_veDeploymentParams.multisigPluginRepo));
+        console.log("- Gauge voter plugin repository:", address(_veDeployment.gaugeVoterPluginRepo));
+
+        console.log("========");
+        console.log("  Vault", _katDeployment.vault);
+        console.log("  Swapper", _katDeployment.swapper);
+        console.log("  CompoundStrategy", _katDeployment.autoCompoundStrategy);
+        console.log("  KatMetadata", _katDeployment.vkatMetadata);
     }
 }

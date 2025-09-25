@@ -2,9 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { Base } from "../integration/Base.sol";
-import { AvKATVault } from "../../src/AvKATVault.sol";
-import { PermissionManager } from "@aragon/osx/core/permission/PermissionManager.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 contract VaultWithdrawTest is Base {
     uint256 internal constant userCount = 20;
@@ -25,15 +22,17 @@ contract VaultWithdrawTest is Base {
         uint256 withdrawalCount = 0;
         uint256 amountAtLeastOne = 0;
         for (uint256 i = 0; i < _users.length; i++) {
-            vm.assume(_users[i].amount > 0);
+            vm.assume(_users[i].amount > 0 && _users[i].amount < type(uint128).max);
             vm.assume(_users[i].account != address(0));
             _mintAndApprove(_users[i].account, address(vault), _users[i].amount);
 
-            if (_users[i].withdraws) {
-                withdrawalCount++;
-                if (_users[i].amount > _parseToken(1)) {
-                    amountAtLeastOne++;
-                }
+            if (!_users[i].withdraws) {
+                continue;
+            }
+
+            withdrawalCount++;
+            if (_users[i].amount > _parseToken(1)) {
+                amountAtLeastOne++;
             }
         }
 
@@ -42,7 +41,13 @@ contract VaultWithdrawTest is Base {
         _;
     }
 
-    function testFuzz_NoCompound(User[20] memory _users, uint128 _compoundAmount) public assumeValidation(_users) {
+    function testFuzz_NoCompound(
+        User[userCount] memory _users,
+        uint128 _compoundAmount
+    )
+        public
+        assumeValidation(_users)
+    {
         uint256 totalDepositAmount = 0;
         uint256 totalDepositShares = 0;
         uint256 totalSharesBefore = vault.totalSupply();
@@ -125,12 +130,12 @@ contract VaultWithdrawTest is Base {
         assertGe(vault.convertToAssets(_parseToken(1)), _parseToken(1));
 
         for (uint256 i = 0; i < _users.length; i++) {
-            if (_users[i].withdraws) {
-                continue;
-            }
-
             // user's shares must give more tokens than what he depositted.
             assertGe(vault.convertToAssets(userShares[i]), _users[i].amount);
+
+            if (!_users[i].withdraws) {
+                continue;
+            }
 
             // We withdraw only the same amount of tokens that user depositted.
             // At this point, total assets was increased but not total supply(shares).
@@ -160,7 +165,7 @@ contract VaultWithdrawTest is Base {
             }
 
             vm.prank(account);
-            uint256 shares = vault.withdraw(leftAssets, account, account);
+            vault.withdraw(leftAssets, account, account);
             temp++;
 
             assertEq(vault.balanceOf(account), 0);
