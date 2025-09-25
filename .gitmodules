@@ -23,3 +23,9 @@
 [submodule "lib/protocol-factory"]
 	path = lib/protocol-factory
 	url = https://github.com/aragon/protocol-factory
+[submodule "libs/merkl"]
+	path = libs/merkl
+	url = https://github.com/AngleProtocol/merkl-contracts
+[submodule "lib/merkl"]
+	path = lib/merkl
+	url = https://github.com/AngleProtocol/merkl-contracts

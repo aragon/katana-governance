@@ -1,53 +1,74 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { IERC20Upgradeable as IERC20 } from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import { ERC4626Upgradeable as ERC4626 } from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { ERC721HolderUpgradeable as ERC721Holder } from
+    "@openzeppelin/contracts-upgradeable/token/ERC721/utils/ERC721HolderUpgradeable.sol";
+import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-import { VotingEscrow, EscrowIVotesAdapter, GaugeVoter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
-import { FixedPointMathLib } from "solmate/utils/FixedPointMathLib.sol";
-import { DaoAuthorizable } from "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizable.sol";
-import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ERC7540 } from "./abstracts/ERC7540.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IRewardsDistributor } from "./interfaces/IRewardsDistributor.sol";
-import { AutoCompoundStrategy } from "./AutoCompoundStrategy.sol";
 
-contract AvKATVault is ERC7540, Initializable, DaoAuthorizable {
-    using FixedPointMathLib for uint256;
+import { VotingEscrow, EscrowIVotesAdapter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 
+import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
+    "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
+import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
+
+contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, DaoAuthorizable {
+    /// @notice bytes32 identifier for admin role functions.
     bytes32 public constant VAULT_ADMIN_ROLE = keccak256("VAULT_ADMIN_ROLE");
 
-    /// Addresses required for operations.
+    /// @notice bytes32 identifier of sweeper that can withdraw mistakenly depositted funds.
+    bytes32 public constant SWEEPER_ROLE = keccak256("SWEEPER_ROLE");
+
+    /// @notice The ivotes adapter, responsible for delegation activities.
     EscrowIVotesAdapter public ivotesAdapter;
+
+    /// @notice The escrow contract address.
     VotingEscrow public escrow;
+
+    /// @notice The nft contract that escrow mints in exchange of erc20 tokens.
     LockNFT public lockNft;
+
+    /// @notice The strategy contract that vault delegates its vp.
     address public strategy;
 
     /// The single tokenId that this vault will hold and
     /// will contain all users' token ids accumulated.
     uint256 public masterTokenId;
 
+    event StrategySet(address strategy);
+    event Sweep(uint256 tokenId, address receiver);
+    event TokenIdWithdrawn(uint256 tokenId, address receiver);
+
     error MasterTokenNotSet();
+    error CannotTransferMasterToken();
     error TokenNotOwned();
 
-    constructor(
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
         address _dao,
-        address _ivotesAdapter,
+        address _escrow,
         address _strategy,
         address _asset,
         string memory _name,
         string memory _symbol
     )
-        ERC7540(_asset, _name, _symbol)
-        DaoAuthorizable(IDAO(_dao))
+        external
+        reinitializer(1)
     {
-        ivotesAdapter = EscrowIVotesAdapter(_ivotesAdapter);
-        escrow = VotingEscrow(ivotesAdapter.escrow());
+        __DaoAuthorizableUpgradeable_init(IDAO(_dao));
+        __ERC20_init(_name, _symbol);
+        __ERC4626_init(IERC20(_asset));
+
+        escrow = VotingEscrow(_escrow);
+        ivotesAdapter = EscrowIVotesAdapter(escrow.ivotesAdapter());
         lockNft = LockNFT(escrow.lockNFT());
 
         if (_strategy != address(0)) {
@@ -67,16 +88,27 @@ contract AvKATVault is ERC7540, Initializable, DaoAuthorizable {
 
     /// @dev To create master tokenId, another party must transfer
     ///      the existing tokenId to this contract and then `initialize`
-    ///      must be called.
-    function initialize(uint256 _tokenId) external initializer {
+    ///      must be called. This is needed as at the deployment time,
+    ///      we might not have caller to have the lock position already
+    ///      created on escrow, so it can be done at a later time.
+    function initializeMasterTokenId(uint256 _tokenId) external reinitializer(2) {
         address owner = lockNft.ownerOf(_tokenId);
         if (owner != address(this)) {
             revert TokenNotOwned();
         }
 
         masterTokenId = _tokenId;
+
+        // After initialize is called, totalAssets() will reflect the amount
+        // of `masterTokenId`, but totalSupply will be 0 and the first depositor
+        // will get 0 shares unless provided deposit is not big enough to cause
+        // shares > 0. To avoid consistency issues, we mint the according shares
+        // to address(1) to increase total supply.
+        _mint(address(1), escrow.locked(_tokenId).amount);
     }
 
+    /// @notice Allows to change a strategy contract.
+    /// @param _strategy The new strategy contract.
     function setStrategy(address _strategy) public auth(VAULT_ADMIN_ROLE) {
         _setStrategy(_strategy);
     }
@@ -87,228 +119,109 @@ contract AvKATVault is ERC7540, Initializable, DaoAuthorizable {
     ///      implementation, such as from OZ will not reflect the correct
     ///      depositted amounts.
     function totalAssets() public view virtual override returns (uint256) {
-        return escrow.locked(masterTokenId).amount - _totalPendingRedeemAssets;
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        ERC7540 LOGIC
-    //////////////////////////////////////////////////////////////*/
-
-    function requestRedeem(
-        uint256 shares,
-        address controller,
-        address owner
-    )
-        public
-        virtual
-        override
-        masterTokenSet
-        returns (uint256)
-    {
-        // Take `owner`'s shares back.
-        SafeERC20.safeTransferFrom(IERC20(asset()), owner, address(this), shares);
-
-        uint256 assets = convertToAssets(shares);
-
-        // Split splits `masterTokenId` into `newTokenId` with amounts such as:
-        // masterTokenId => current masterTokenId ammount - assets
-        // newTokenId => assets
-        uint256 newTokenId = escrow.split(masterTokenId, assets);
-
-        _pendingRedemption[controller] = RedemptionRequest({
-            assets: assets,
-            shares: shares,
-            tokenId: newTokenId,
-            // TODO: add the time after which it can be withdrawn.(use queue)
-            claimableTimestamp: uint32(block.timestamp) + uint32(escrow.locked(newTokenId).start)
-        });
-
-        _totalPendingRedeemAssets += assets;
-
-        // masterTokenId now contains its total amount - assets
-        // start a withdrawal process.
-        escrow.beginWithdrawal(newTokenId);
-
-        emit RedeemRequest(controller, owner, REQUEST_ID, msg.sender, shares);
-
-        return REQUEST_ID;
-    }
-
-    function pendingRedeemRequest(uint256, address controller) public view returns (uint256 pendingShares) {
-        RedemptionRequest memory request = _pendingRedemption[controller];
-
-        if (request.claimableTimestamp > block.timestamp) {
-            return request.shares;
-        }
-
-        return 0;
-    }
-
-    function claimableRedeemRequest(uint256, address controller) public view returns (uint256 claimableShares) {
-        RedemptionRequest memory request = _pendingRedemption[controller];
-        if (request.claimableTimestamp <= block.timestamp && request.shares > 0) {
-            return request.shares;
-        }
-
-        return 0;
+        return escrow.locked(masterTokenId).amount;
     }
 
     /*//////////////////////////////////////////////////////////////
                         ERC4626 OVERRIDDEN LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function redeem(
-        uint256 _shares,
+    function _withdraw(
+        address _caller,
         address _receiver,
-        address _controller
-    )
-        public
-        virtual
-        override
-        masterTokenSet
-        controllerAllowed(_controller)
-        returns (uint256 assets)
-    {
-        if (_shares == 0) {
-            revert ZeroAmount();
-        }
-
-        RedemptionRequest storage request = _pendingRedemption[_controller];
-
-        if (block.timestamp > request.claimableTimestamp) {
-            revert NotClaimableYet();
-        }
-
-        // Ensure that we use the same ratio as at the time of making this request in requestRedeem.
-        // This is because during requestRedeem and redeem, share price per asset could change.
-        assets = _shares.mulDivDown(request.assets, request.shares);
-        uint256 assetsUp = _shares.mulDivUp(request.assets, request.shares);
-
-        request.assets = request.assets > assetsUp ? request.assets - assetsUp : 0;
-        request.shares -= _shares;
-
-        _totalPendingRedeemAssets -= assets;
-
-        // This transfers back amount to this contract
-        escrow.withdraw(request.tokenId);
-
-        // transfer back the assets to the user.
-        SafeERC20.safeTransferFrom(IERC20(asset()), address(this), _receiver, assets);
-
-        emit Withdraw(msg.sender, _receiver, _controller, assets, _shares);
-    }
-
-    function withdraw(
+        address _owner,
         uint256 _assets,
-        address _receiver,
-        address _controller
+        uint256 _shares
     )
-        public
+        internal
         virtual
         override
         masterTokenSet
-        controllerAllowed(_controller)
-        returns (uint256 shares)
     {
-        RedemptionRequest storage request = _pendingRedemption[_controller];
-        if (block.timestamp > request.claimableTimestamp) {
-            revert NotClaimableYet();
+        if (_caller != _owner) {
+            _spendAllowance(_owner, _caller, _shares);
         }
 
-        // Claiming partially introduces precision loss. The user therefore
-        // receives a rounded down amount, while the claimable balance is
-        // reduced by a rounded up amount.
-        shares = _assets.mulDivDown(request.shares, request.assets);
-        uint256 sharesUp = _assets.mulDivUp(request.shares, request.assets);
+        _burn(_owner, _shares);
+        uint256 newTokenId = escrow.split(masterTokenId, _assets);
+        lockNft.transferFrom(address(this), _receiver, newTokenId);
 
-        request.assets -= _assets;
-        request.shares = request.shares > sharesUp ? request.shares - sharesUp : 0;
+        emit Withdraw(_caller, _receiver, _owner, _assets, _shares);
 
-        _totalPendingRedeemAssets -= _assets;
-
-        // This transfers back amount to this contract
-        escrow.withdraw(request.tokenId);
-
-        emit Withdraw(msg.sender, _receiver, _controller, _assets, shares);
-
-        // transfer back the assets to the user.
-        SafeERC20.safeTransferFrom(IERC20(asset()), address(this), _receiver, _assets);
-
-        emit Withdraw(msg.sender, _receiver, _controller, _assets, shares);
+        emit TokenIdWithdrawn(newTokenId, _receiver);
     }
 
     /// @dev Transfer `assets` from caller to Vault.
     ///      User must have approved `Vault` for this.
-    function deposit(uint256 assets, address receiver) public virtual override masterTokenSet returns (uint256) {
-        // Transfers `assets` from caller to this vault
-        // and mints shares as well.
-        super.deposit(assets, receiver);
+    function _deposit(
+        address _caller,
+        address _receiver,
+        uint256 _assets,
+        uint256 _shares
+    )
+        internal
+        virtual
+        override
+        masterTokenSet
+    {
+        super._deposit(_caller, _receiver, _assets, _shares);
+
+        IERC20(asset()).approve(address(escrow), _assets);
 
         // creates a lock which transfers assets to escrow.
-        uint256 tokenId = escrow.createLock(assets);
+        uint256 tokenId = escrow.createLock(_assets);
 
         // merge newly created token to Vault's
         // single tokenid for accumulation.
         escrow.merge(tokenId, masterTokenId);
     }
 
-    /// @dev If `tokenId` position is already created on escrow,
-    ///      this allows to still deposit which will mint the shares
-    ///      depending on the amount that tokenId lock was created on escrow.
-    function depositToken(uint256 tokenId, address receiver) public virtual masterTokenSet returns (uint256) {
-        uint256 assets = escrow.locked(tokenId).amount;
-
-        // If user doesn't hold veNFT, this will fail.
-        lockNft.transferFrom(msg.sender, address(this), tokenId);
-
-        escrow.merge(tokenId, masterTokenId);
-
-        uint256 shares = convertToShares(assets);
-        _mint(receiver, shares);
-
-        emit Deposit(msg.sender, receiver, assets, shares);
-    }
-
-    function maxWithdraw(address _controller) public view virtual override returns (uint256) {
-        RedemptionRequest memory request = _pendingRedemption[_controller];
-        if (request.claimableTimestamp <= block.timestamp) {
-            return request.assets;
-        }
-
-        return 0;
-    }
-
-    function maxRedeem(address _controller) public view virtual override returns (uint256) {
-        RedemptionRequest memory request = _pendingRedemption[_controller];
-        if (request.claimableTimestamp <= block.timestamp) {
-            return request.shares;
-        }
-
-        return 0;
-    }
-
-    // Preview functions always revert for async flows
-    function previewWithdraw(uint256) public pure virtual override returns (uint256) {
-        revert NotAsyncable();
-    }
-
-    function previewRedeem(uint256) public pure virtual override returns (uint256) {
-        revert NotAsyncable();
-    }
-
     /*//////////////////////////////////////////////////////////////
                        AvKatVault Functions
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice The total pending assets that has been requested but not yet redeemed.
-    function totalPendingRedeemAssets() public view returns (uint256) {
-        return _totalPendingRedeemAssets;
+    /// @dev If `tokenId` position is already created on escrow,
+    ///      this allows to still deposit which will mint the shares
+    ///      depending on the amount that tokenId lock was created on escrow.
+    function depositToken(uint256 _tokenId, address _receiver) public virtual masterTokenSet returns (uint256) {
+        uint256 assets = escrow.locked(_tokenId).amount;
+
+        require(assets <= maxDeposit(_receiver), "ERC4626: deposit more than max");
+        uint256 shares = previewDeposit(assets);
+
+        // Reverts if the caller does not own a veNFT.
+        // Safe transfer is unnecessary since `_receiver` is always this contract,
+        // which we know can correctly forward tokens to users (see `_withdraw`).
+        // If `amount` on tokenId is 0, either merge or withdrawal occured in which case
+        // `transferFrom` will anyways fail.
+        lockNft.transferFrom(msg.sender, address(this), _tokenId);
+
+        escrow.merge(_tokenId, masterTokenId);
+
+        _mint(_receiver, shares);
+
+        emit Deposit(msg.sender, _receiver, assets, shares);
+
+        return shares;
+    }
+
+    /// @notice send veNFT mistakenly transferred to `_receiver`.
+    /// @dev If veNFT was depositted through `depositToken`, it would
+    ///      be merged, hence such veNFTs can not be recovered.
+    function recoverNFT(uint256 _tokenId, address _receiver) external auth(SWEEPER_ROLE) {
+        if (_tokenId == masterTokenId) {
+            revert CannotTransferMasterToken();
+        }
+
+        lockNft.safeTransferFrom(address(this), _receiver, _tokenId);
+
+        emit Sweep(_tokenId, _receiver);
     }
 
     /// @dev Allows an admin to set a new strategy contract.
     ///      It automatically undelegates from old strategy
     ///      and delegates to new one.
-    function _setStrategy(address _strategy) public auth(VAULT_ADMIN_ROLE) {
+    function _setStrategy(address _strategy) internal virtual {
         // Since Vault only holds `masterTokenId`, the delegate
         // will delegate that token to new strategy.
         ivotesAdapter.delegate(_strategy);
@@ -318,5 +231,17 @@ contract AvKATVault is ERC7540, Initializable, DaoAuthorizable {
         lockNft.setApprovalForAll(_strategy, true);
 
         strategy = _strategy;
+
+        emit StrategySet(_strategy);
     }
+
+    // =========== Upgrade Related Functions ===========
+    function _authorizeUpgrade(address) internal override auth(VAULT_ADMIN_ROLE) { }
+
+    function implementation() external view returns (address) {
+        return _getImplementation();
+    }
+
+    /// @dev Reserved storage space to allow for layout changes in the future.
+    uint256[45] private __gap;
 }
