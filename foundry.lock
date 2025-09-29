@@ -1,0 +1,29 @@
+{
+  "lib/forge-std": {
+    "rev": "0c71116a218268ee8c0157be8efcb13af0f7beaf"
+  },
+  "lib/merkl": {
+    "rev": "bd3bd1ead0cb421a09e60c046fad56ee26f34008"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "e8745a6a68d77c43c01e2cbe2c83a0b3d36ecc84"
+  },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "rev": "d83fc65ee4b24aa50a6d42e4510cee1566067a98"
+  },
+  "lib/osx": {
+    "rev": "df9a2acf3e0cce1d146d63c6894a8274d6786c17"
+  },
+  "lib/osx-commons": {
+    "rev": "6627101992f2d41db2be7eee1696eb3fa81eed02"
+  },
+  "lib/protocol-factory": {
+    "rev": "9e821ce30b35c2b85f43b9de7f6c6c418372d94e"
+  },
+  "lib/ve-governance": {
+    "branch": {
+      "name": "audit-4",
+      "rev": "116ded91e6026b00e377faa320707161dcdcc63d"
+    }
+  }
+}
