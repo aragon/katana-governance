@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { Base } from "../integration/Base.sol";
+import { ERC721ReceiverMock } from "../mocks/MockERC721.sol";
 
 contract VaultWithdrawTest is Base {
     uint256 internal constant userCount = 20;
@@ -24,6 +25,12 @@ contract VaultWithdrawTest is Base {
         for (uint256 i = 0; i < _users.length; i++) {
             vm.assume(_users[i].amount > 0 && _users[i].amount < type(uint128).max);
             vm.assume(_users[i].account != address(0));
+
+            if (_users[i].account.code.length != 0) {
+                ERC721ReceiverMock receiver = new ERC721ReceiverMock();
+                _users[i].account = address(receiver);
+            }
+
             _mintAndApprove(_users[i].account, address(vault), _users[i].amount);
 
             if (!_users[i].withdraws) {

@@ -22,10 +22,7 @@ contract VaultDepositTest is Base {
 
         AvKATVault newVault = AvKATVault(
             base.deployUUPSProxy(
-                abi.encodeCall(
-                    AvKATVault.initialize,
-                    (address(dao), address(escrow), address(0), address(token), "Test Vault", "TEST")
-                )
+                abi.encodeCall(AvKATVault.initialize, (address(dao), address(escrow), address(0), "Test Vault", "TEST"))
             )
         );
 

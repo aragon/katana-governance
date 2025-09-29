@@ -24,7 +24,7 @@ function deployVault(
     address vaultBase = address(new AvKATVault());
 
     address vault = ProxyLib.deployUUPSProxy(
-        vaultBase, abi.encodeCall(AvKATVault.initialize, (_dao, _escrow, _strategy, _token, _name, _symbol))
+        vaultBase, abi.encodeCall(AvKATVault.initialize, (_dao, _escrow, _strategy, _name, _symbol))
     );
 
     return (vaultBase, vault);

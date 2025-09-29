@@ -8,12 +8,12 @@ import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy
 import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
 
 import { MockDAO } from "test/mocks/MockDAO.sol";
-import { MockVKatERC721 } from "test/mocks/MockVKatERC721.sol";
+import { MockERC721 } from "test/mocks/MockERC721.sol";
 
 contract VKatMetadataTest is Test {
     VKatMetadata public implementation;
     VKatMetadata public metadata;
-    MockVKatERC721 public vkat;
+    MockERC721 public vkat;
     MockDAO public dao;
 
     address public admin = address(0x1);
@@ -31,7 +31,7 @@ contract VKatMetadataTest is Test {
 
     function setUp() public {
         // Deploy mock contracts
-        vkat = new MockVKatERC721();
+        vkat = new MockERC721();
         dao = new MockDAO();
 
         // Setup default preferences

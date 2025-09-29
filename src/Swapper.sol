@@ -59,13 +59,13 @@ contract Swapper is ISwapper, ReentrancyGuard {
             users[i] = msg.sender;
         }
 
+        uint256 beforeAmount = token.balanceOf(address(this));
+
         // If `_tokens`, `_amounts` and `_proofs` have incorrect size, below reverts.
         // The `user` must have set this contract as a recipient
         // for the `token` prior to calling this.
         // At this point, this contract holds balances on `_tokens`.
         rewardDistributor.claim(users, _claim.tokens, _claim.amounts, _claim.proofs);
-
-        uint256 beforeAmount = token.balanceOf(address(this));
 
         // call actions
         (bool success,) = executor.delegatecall(

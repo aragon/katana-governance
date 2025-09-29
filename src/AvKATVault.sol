@@ -56,7 +56,6 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
         address _dao,
         address _escrow,
         address _strategy,
-        address _asset,
         string memory _name,
         string memory _symbol
     )
@@ -65,9 +64,11 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
     {
         __DaoAuthorizableUpgradeable_init(IDAO(_dao));
         __ERC20_init(_name, _symbol);
-        __ERC4626_init(IERC20(_asset));
 
         escrow = VotingEscrow(_escrow);
+
+        __ERC4626_init(IERC20(escrow.token()));
+
         ivotesAdapter = EscrowIVotesAdapter(escrow.ivotesAdapter());
         lockNft = LockNFT(escrow.lockNFT());
 
@@ -144,7 +145,7 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
 
         _burn(_owner, _shares);
         uint256 newTokenId = escrow.split(masterTokenId, _assets);
-        lockNft.transferFrom(address(this), _receiver, newTokenId);
+        lockNft.safeTransferFrom(address(this), _receiver, newTokenId);
 
         emit Withdraw(_caller, _receiver, _owner, _assets, _shares);
 
@@ -225,10 +226,6 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
         // Since Vault only holds `masterTokenId`, the delegate
         // will delegate that token to new strategy.
         ivotesAdapter.delegate(_strategy);
-
-        // approve strategy contract for nft operations.
-        // needed so strategy can call `merge` as an approved owner.
-        lockNft.setApprovalForAll(_strategy, true);
 
         strategy = _strategy;
 
