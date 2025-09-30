@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { Base } from "./Base.sol";
+import { Base } from "../Base.sol";
 import { AddressGaugeVoter as GaugeVoter } from "@voting/AddressGaugeVoter.sol";
 import { IAddressGaugeVote as IGaugeVoter } from "@voting/IAddressGaugeVoter.sol";
 
@@ -13,10 +13,25 @@ import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
 import { MockSwap } from "test/mocks/MockSwap.sol";
 
 contract AutoCompoundTest is Base {
+    address[] internal tokens;
+    uint256[] internal amounts;
+
+    address internal gaugeA = vm.createWallet("gaugeA").addr;
+    address internal gaugeB = vm.createWallet("gaugeB").addr;
+
     function setUp() public override {
         super.setUp();
 
-        super.buildMerkleTree(address(autoCompoundStrategy), 50e18, 15e18);
+        tokens.push(tokenA);
+        tokens.push(tokenB);
+
+        amounts.push(50e18);
+        amounts.push(15e18);
+
+        vm.startPrank(address(dao));
+        voter.createGauge(gaugeA, "metadata1");
+        voter.createGauge(gaugeB, "metadata2");
+        vm.stopPrank();
     }
 
     function testRevert_VoteIfNoPermission() public {
@@ -25,19 +40,19 @@ contract AutoCompoundTest is Base {
         autoCompoundStrategy.vote(new GaugeVoter.GaugeVote[](0));
     }
 
+    // tokenA swaps into token and tokenB swaps into token
     function test_ClaimsAndCompoundsAutomaticallyIfClaimedAmountIsNonZero() public {
-        // tokenA swaps into token and tokenB swaps into token
-        (address[] memory tokens, uint256[] memory amounts, bytes32[][] memory proofs, Action[] memory actions) =
-            claimAndSwapParams(tokenA, address(token), tokenB, address(token));
+        (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(address(autoCompoundStrategy), tokens, amounts);
+        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, address(token), new uint256[](0));
 
         uint256 shares = autoCompoundStrategy.claimAndCompound(tokens, amounts, proofs, actions);
         assertNotEq(shares, 0);
     }
 
+    // tokenA swaps into tokenC and tokenB swaps into tokenC
     function test_ClaimsTokensButDoesnotDepositInVault() public {
-        // tokenA swaps into tokenC and tokenB swaps into tokenC
-        (address[] memory tokens, uint256[] memory amounts, bytes32[][] memory proofs, Action[] memory actions) =
-            claimAndSwapParams(tokenA, tokenC, tokenB, tokenC);
+        (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(address(autoCompoundStrategy), tokens, amounts);
+        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, tokenC, new uint256[](0));
 
         uint256 shares = autoCompoundStrategy.claimAndCompound(tokens, amounts, proofs, actions);
         assertEq(shares, 0);
@@ -58,8 +73,8 @@ contract AutoCompoundTest is Base {
         assertNotEq(gaugeAVotesBefore, 0);
         assertNotEq(gaugeBVotesBefore, 0);
 
-        (address[] memory tokens, uint256[] memory amounts, bytes32[][] memory proofs, Action[] memory actions) =
-            claimAndSwapParams(tokenA, address(token), tokenB, address(token));
+        (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(address(autoCompoundStrategy), tokens, amounts);
+        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, address(token), new uint256[](0));
 
         autoCompoundStrategy.claimAndCompound(tokens, amounts, proofs, actions);
 
@@ -101,32 +116,5 @@ contract AutoCompoundTest is Base {
         autoCompoundStrategy.upgradeTo(address(newImplementation));
 
         assertEq(autoCompoundStrategy.implementation(), address(newImplementation));
-    }
-
-    function claimAndSwapParams(
-        address claim1,
-        address swap1,
-        address claim2,
-        address swap2
-    )
-        internal
-        view
-        returns (address[] memory, uint256[] memory, bytes32[][] memory, Action[] memory)
-    {
-        ClaimInput[] memory input = new ClaimInput[](2);
-        input[0] = ClaimInput(address(claim1), 50e18, merkleTree.getProof(leaves, 0));
-        input[1] = ClaimInput(address(claim2), 15e18, merkleTree.getProof(leaves, 1));
-
-        (address[] memory tokens, uint256[] memory amounts, bytes32[][] memory proofs) = buildClaimAndSwapParams(input);
-
-        // Swap routes
-        Action[] memory actions = new Action[](2);
-        actions[0].to = address(mockSwap);
-        actions[0].data = abi.encodeCall(MockSwap.swap, (address(claim1), address(swap1), 50e18));
-
-        actions[1].to = address(mockSwap);
-        actions[1].data = abi.encodeCall(MockSwap.swap, (address(claim2), address(swap2), 15e18));
-
-        return (tokens, amounts, proofs, actions);
     }
 }

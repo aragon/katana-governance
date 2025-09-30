@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+
 import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
 
-import { Base } from "../Base.sol";
-import { AvKATVault } from "src/AvKATVault.sol";
+import { Base } from "../../Base.sol";
+import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IVotingEscrowCoreErrors } from "@escrow/IVotingEscrowIncreasing_v1_2_0.sol";
 
 contract VaultDepositTest is Base {
@@ -18,18 +20,18 @@ contract VaultDepositTest is Base {
     }
 
     function testRevert_IfMasterTokenNotSet() public {
-        address base = address(new AvKATVault());
+        address base = address(new Vault());
 
-        AvKATVault newVault = AvKATVault(
+        Vault newVault = Vault(
             base.deployUUPSProxy(
-                abi.encodeCall(AvKATVault.initialize, (address(dao), address(escrow), address(0), "Test Vault", "TEST"))
+                abi.encodeCall(Vault.initialize, (address(dao), address(escrow), address(0), "Test Vault", "TEST"))
             )
         );
 
         vm.startPrank(alice);
         token.approve(address(newVault), _parseToken(100));
 
-        vm.expectRevert(AvKATVault.MasterTokenNotSet.selector);
+        vm.expectRevert(Vault.MasterTokenNotSet.selector);
         newVault.deposit(_parseToken(100), alice);
         vm.stopPrank();
     }
@@ -76,7 +78,7 @@ contract VaultDepositTest is Base {
         lockNft.setApprovalForAll(address(vault), true);
 
         vm.expectEmit(true, true, true, true);
-        emit Deposit(alice, alice, depositAmount, depositAmount);
+        emit IERC4626.Deposit(alice, alice, depositAmount, depositAmount);
 
         uint256 shares = vault.depositToken(tokenId, alice);
         vm.stopPrank();
@@ -98,7 +100,7 @@ contract VaultDepositTest is Base {
         uint256 totalAssetsBefore = vault.totalAssets();
 
         vm.expectEmit();
-        emit Deposit(alice, alice, depositAmount, depositAmount);
+        emit IERC4626.Deposit(alice, alice, depositAmount, depositAmount);
 
         vm.prank(alice);
         uint256 shares = vault.deposit(depositAmount, alice);
@@ -119,7 +121,7 @@ contract VaultDepositTest is Base {
         uint256 depositAmount = _parseToken(100);
 
         vm.expectEmit();
-        emit Deposit(alice, receiver, depositAmount, depositAmount);
+        emit IERC4626.Deposit(alice, receiver, depositAmount, depositAmount);
 
         vm.prank(alice);
         uint256 shares = vault.deposit(depositAmount, receiver);

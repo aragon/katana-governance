@@ -81,14 +81,18 @@ contract Swapper is ISwapper, ReentrancyGuard {
         Locked memory lock;
 
         // If diff > 0, then kat token balance was increased on this contract.
-        // If pct > 0, create a lock with percentage.
-        // The rest goes to the sender.
+        // If pct > 0, create a lock with percentage and send rest to sender.
+        // If pct = 0, send whole amount to sender.
         if (diff > 0) {
             uint256 remaining = diff;
             if (_pct > 0) {
                 lock.amount = (diff * _pct) / 100;
                 remaining = diff - lock.amount;
 
+                // approve should not revert even for non-compliant ERC20s as
+                // it only approves the exact amount that will be transfered
+                // from this contract, automatically setting allowance back to 0.
+                // we trust that escrow's createLockFor will transfer the whole lock.amount.
                 token.approve(address(escrow), lock.amount);
                 lock.tokenId = escrow.createLockFor(lock.amount, msg.sender);
             }

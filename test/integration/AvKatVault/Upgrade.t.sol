@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { Base } from "../Base.sol";
+import { Base } from "../../Base.sol";
 
 import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
 

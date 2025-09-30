@@ -1,0 +1,270 @@
+{
+    "version": "1.0",
+    "hypotheses": {
+        "hyp_1911739fd9ec": {
+            "title": "Swapper delegates to external executor; arbitrary logic runs with vault funds",
+            "description": "VULNERABILITY TYPE: security_issue\nROOT CAUSE: claimAndSwap uses delegatecall to an external executor with caller-supplied _actions; executor code executes in Swapper\u2019s context without local permission checks\nATTACK VECTOR: Malicious/compromised executor or unsafe actions can transfer/approve tokens from Swapper or corrupt its state; any caller can trigger claimAndSwap\nAFFECTED NODES: function_claimAndSwap, storage_executor, storage_token\nAFFECTED CODE: src/Swapper.sol: claimAndSwap -> executor.delegatecall(...)\nSEVERITY: high\nREASONING: Delegatecall to an external address executes arbitrary code in Swapper\u2019s storage context. With only nonReentrant and no local auth, trust is centralized in executor. A malicious/upgradable executor can drain token or perform arbitrary state changes.",
+            "vulnerability_type": "security_issue",
+            "severity": "high",
+            "confidence": 0.6,
+            "status": "proposed",
+            "node_refs": [
+                "function_claimAndSwap",
+                "storage_executor",
+                "storage_token"
+            ],
+            "evidence": [],
+            "reasoning": "Delegatecall to an external address executes arbitrary code in Swapper\u2019s storage context. With only nonReentrant and no local auth, trust is centralized in executor. A malicious/upgradable executor can drain token or perform arbitrary state changes.",
+            "properties": {
+                "graph_name": "SystemArchitecture",
+                "source_files": [
+                    "src/Swapper.sol"
+                ],
+                "affected_functions": [
+                    "claimAndSwap"
+                ]
+            },
+            "created_by": "agent_20250930_002051",
+            "reported_by_model": "OpenAI:gpt-5",
+            "junior_model": "OpenAI:gpt-5-mini",
+            "senior_model": "OpenAI:gpt-5",
+            "session_id": null,
+            "visibility": "global",
+            "created_at": "2025-09-30T00:38:36.621526",
+            "id": "hyp_1911739fd9ec"
+        },
+        "hyp_2b006c1ede03": {
+            "title": "Untrusted strategy callbacks in deposits/withdrawals enable reentrancy",
+            "description": "VULNERABILITY TYPE: security_issue\nROOT CAUSE: _deposit, _withdraw and depositToken make external calls to the strategy address without any nonReentrant guard or checks; strategy is arbitrary admin-set address\nATTACK VECTOR: Malicious strategy reenters Vault functions during deposit/withdraw/depositToken to manipulate share/accounting or transfer NFTs using prior approvals\nAFFECTED NODES: function__deposit, function__withdraw, function_depositToken, storage_strategy\nAFFECTED CODE: src/AvKATVault.sol: _deposit(...) -> external call to strategy, src/AvKATVault.sol: _withdraw(...) -> external call to strategy, src/AvKATVault.sol: depositToken(...) -> external call to strategy\nSEVERITY: high\nREASONING: ExternalDeps graph shows calls from _deposit/_withdraw/depositToken to strategy; AuthorizationMap shows no nonReentrant on Vault. With setApprovalForAll to strategy, a malicious strategy can reenter and interfere with state or NFT transfers.",
+            "vulnerability_type": "security_issue",
+            "severity": "high",
+            "confidence": 0.6,
+            "status": "proposed",
+            "node_refs": [
+                "function__deposit",
+                "function__withdraw",
+                "function_depositToken",
+                "storage_strategy"
+            ],
+            "evidence": [],
+            "reasoning": "ExternalDeps graph shows calls from _deposit/_withdraw/depositToken to strategy; AuthorizationMap shows no nonReentrant on Vault. With setApprovalForAll to strategy, a malicious strategy can reenter and interfere with state or NFT transfers.",
+            "properties": {
+                "graph_name": "SystemArchitecture",
+                "source_files": [
+                    "src/AvKATVault.sol"
+                ],
+                "affected_functions": [
+                    "_deposit",
+                    "_withdraw",
+                    "depositToken"
+                ]
+            },
+            "created_by": "agent_20250930_002051",
+            "reported_by_model": "OpenAI:gpt-5",
+            "junior_model": "OpenAI:gpt-5-mini",
+            "senior_model": "OpenAI:gpt-5",
+            "session_id": null,
+            "visibility": "global",
+            "created_at": "2025-09-30T00:45:23.747459",
+            "id": "hyp_2b006c1ede03"
+        },
+        "hyp_b0c6361659e8": {
+            "title": "recoverNFT can sweep new \u2018master\u2019 after split/merge due to stale masterTokenId",
+            "description": "VULNERABILITY TYPE: security_issue\nROOT CAUSE: recoverNFT only excludes the exact masterTokenId, but masterTokenId is not updated anywhere after Escrow split/merge operations that may change the controlling veNFT tokenId.\nATTACK VECTOR: After _withdraw calls Escrow.split and the remainder/new controlling tokenId != masterTokenId, SWEEPER_ROLE calls recoverNFT(remainderId,to) to transfer the actual vault position out.\nAFFECTED NODES: function_recoverNFT, function__withdraw, func_split, storage_masterTokenId, storage_lockNft\nAFFECTED CODE: AvKATVault::recoverNFT, AvKATVault::_withdraw, Escrow::split\nSEVERITY: high\nREASONING: Graphs show recoverNFT guards only masterTokenId and calls lockNft; _withdraw calls Escrow.split but no node indicates masterTokenId updates post-split (only initializeMasterTokenId writes). Theoretical/manual reproduction: perform split creating new controlling id, then sweep that id.",
+            "vulnerability_type": "security_issue",
+            "severity": "high",
+            "confidence": 0.6,
+            "status": "proposed",
+            "node_refs": [
+                "function_recoverNFT",
+                "function__withdraw",
+                "func_split",
+                "storage_masterTokenId",
+                "storage_lockNft"
+            ],
+            "evidence": [],
+            "reasoning": "Graphs show recoverNFT guards only masterTokenId and calls lockNft; _withdraw calls Escrow.split but no node indicates masterTokenId updates post-split (only initializeMasterTokenId writes). Theoretical/manual reproduction: perform split creating new controlling id, then sweep that id.",
+            "properties": {
+                "graph_name": "SystemArchitecture",
+                "source_files": [
+                    "src/AvKATVault.sol"
+                ],
+                "affected_functions": [
+                    "recoverNFT",
+                    "_withdraw"
+                ]
+            },
+            "created_by": "agent_20250930_002051",
+            "reported_by_model": "OpenAI:gpt-5",
+            "junior_model": "OpenAI:gpt-5-mini",
+            "senior_model": "OpenAI:gpt-5",
+            "session_id": null,
+            "visibility": "global",
+            "created_at": "2025-09-30T01:29:08.641536",
+            "id": "hyp_b0c6361659e8"
+        },
+        "hyp_94b0939ceef0": {
+            "title": "Swapper keeps allowance to Escrow enabling transferFrom drain",
+            "description": "VULNERABILITY TYPE: security_issue\nROOT CAUSE: claimAndSwap approves underlying token to external Escrow and does not revoke/zero allowance, leaving persistent spend rights to a potentially upgradeable/mistrusted Escrow\nATTACK VECTOR: Escrow (or upgraded logic) calls token.transferFrom(Swapper, attacker) using leftover/infinite allowance to sweep any tokens held by Swapper\nAFFECTED NODES: function_claimAndSwap, func_claimAndSwap, storage_token, storage_escrow_s, contract_Swapper\nAFFECTED CODE: Swapper.claimAndSwap: IERC20(token).approve(address(escrow), ...); verify zeroing/revoke\nSEVERITY: high\nREASONING: Graphs show claimAndSwap -> token.approves and uses Escrow.createLockFor (pull-from-caller). If allowance persists (max or non-zero-to-non-zero), an untrusted/upgradeable Escrow can drain via transferFrom.",
+            "vulnerability_type": "security_issue",
+            "severity": "high",
+            "confidence": 0.6,
+            "status": "proposed",
+            "node_refs": [
+                "function_claimAndSwap",
+                "func_claimAndSwap",
+                "storage_token",
+                "storage_escrow_s",
+                "contract_Swapper"
+            ],
+            "evidence": [],
+            "reasoning": "Graphs show claimAndSwap -> token.approves and uses Escrow.createLockFor (pull-from-caller). If allowance persists (max or non-zero-to-non-zero), an untrusted/upgradeable Escrow can drain via transferFrom.",
+            "properties": {
+                "graph_name": "SystemArchitecture",
+                "source_files": [
+                    "src/Swapper.sol"
+                ],
+                "affected_functions": [
+                    "claimAndSwap"
+                ]
+            },
+            "created_by": "agent_20250930_002051",
+            "reported_by_model": "OpenAI:gpt-5",
+            "junior_model": "OpenAI:gpt-5-mini",
+            "senior_model": "OpenAI:gpt-5",
+            "session_id": null,
+            "visibility": "global",
+            "created_at": "2025-09-30T03:55:33.345184",
+            "id": "hyp_94b0939ceef0"
+        },
+        "hyp_45ff0c93ff26": {
+            "title": "Vault\u2019s _deposit approval to Escrow exposes ERC20 rug surface",
+            "description": "VULNERABILITY TYPE: security_issue\nROOT CAUSE: AvKATVault._deposit grants token allowance to external Escrow and does not revoke it, creating persistent spend rights to Escrow\nATTACK VECTOR: Compromised/upgradeable Escrow triggers token.transferFrom(AvKATVault, attacker) using leftover/infinite allowance to steal any ERC20 in Vault\nAFFECTED NODES: function__deposit, storage_escrow, contract_AvKATVault\nAFFECTED CODE: AvKATVault._deposit: IERC20(underlying).approve(address(escrow), ...); verify zeroing/revoke\nSEVERITY: high\nREASONING: SystemArchitecture notes _deposit->escrow:approves. If approval is unlimited or not zeroed, Escrow can pull funds via transferFrom. External Escrow trust/upgrade status unknown \u2192 risk persists.",
+            "vulnerability_type": "security_issue",
+            "severity": "high",
+            "confidence": 0.6,
+            "status": "proposed",
+            "node_refs": [
+                "function__deposit",
+                "storage_escrow",
+                "contract_AvKATVault"
+            ],
+            "evidence": [],
+            "reasoning": "SystemArchitecture notes _deposit->escrow:approves. If approval is unlimited or not zeroed, Escrow can pull funds via transferFrom. External Escrow trust/upgrade status unknown \u2192 risk persists.",
+            "properties": {
+                "graph_name": "SystemArchitecture",
+                "source_files": [
+                    "src/AvKATVault.sol",
+                    "src/Swapper.sol"
+                ],
+                "affected_functions": [
+                    "_deposit"
+                ]
+            },
+            "created_by": "agent_20250930_002051",
+            "reported_by_model": "OpenAI:gpt-5",
+            "junior_model": "OpenAI:gpt-5-mini",
+            "senior_model": "OpenAI:gpt-5",
+            "session_id": null,
+            "visibility": "global",
+            "created_at": "2025-09-30T03:55:35.256918",
+            "id": "hyp_45ff0c93ff26"
+        },
+        "hyp_92db1cfc6f16": {
+            "title": "claimAndSwap underflow on negative diff causes revert/DoS",
+            "description": "VULNERABILITY TYPE: security_issue\nROOT CAUSE: diff computed as afterAmount - beforeAmount without checking afterAmount >= beforeAmount; Solidity 0.8 underflow reverts\nATTACK VECTOR: Executor actions reduce token balance during delegatecall; afterAmount < beforeAmount triggers underflow and reverts claimAndSwap, enabling DoS\nAFFECTED NODES: func_claimAndSwap, contract_Swapper, storage_token\nAFFECTED CODE: src/Swapper.sol: claimAndSwap -> uint256 beforeAmount=token.balanceOf(this); ... uint256 afterAmount=token.balanceOf(this); diff=afterAmount - beforeAmount;\nSEVERITY: medium\nREASONING: Loaded code shows unchecked subtraction; any action decreasing balance (fees/transfers) causes revert. No guards present.",
+            "vulnerability_type": "security_issue",
+            "severity": "medium",
+            "confidence": 0.9,
+            "status": "proposed",
+            "node_refs": [
+                "func_claimAndSwap",
+                "contract_Swapper",
+                "storage_token"
+            ],
+            "evidence": [],
+            "reasoning": "Loaded code shows unchecked subtraction; any action decreasing balance (fees/transfers) causes revert. No guards present.",
+            "properties": {
+                "graph_name": "SystemArchitecture",
+                "source_files": [
+                    "src/Swapper.sol"
+                ],
+                "affected_functions": []
+            },
+            "created_by": "agent_20250930_002051",
+            "reported_by_model": "OpenAI:gpt-5",
+            "junior_model": "OpenAI:gpt-5-mini",
+            "senior_model": "OpenAI:gpt-5",
+            "session_id": null,
+            "visibility": "global",
+            "created_at": "2025-09-30T04:15:54.987579",
+            "id": "hyp_92db1cfc6f16"
+        },
+        "hyp_5567f4addaaa": {
+            "title": "initializeMasterTokenId mints shares to address(1), permanently diluting supply",
+            "description": "VULNERABILITY TYPE: security_issue\nROOT CAUSE: initializeMasterTokenId invokes ERC20 _mint to address(1) instead of vault/zero, creating unrecoverable supply that skews ERC4626 math\nATTACK VECTOR: On init, dead shares at 0x1 inflate totalSupply; previewDeposit/previewWithdraw use skewed totals, mispricing shares and harming solvency\nAFFECTED NODES: function_initializeMasterTokenId, func__mint\nAFFECTED CODE: AvKATVault.initializeMasterTokenId, ERC20._mint\nSEVERITY: high\nREASONING: Graphs note initializeMasterTokenId-> _mint and 'mints to address(1)'. No burn/update shown. This causes permanent dilution and mispricing across ERC4626 flows.",
+            "vulnerability_type": "security_issue",
+            "severity": "high",
+            "confidence": 0.9,
+            "status": "proposed",
+            "node_refs": [
+                "function_initializeMasterTokenId",
+                "func__mint"
+            ],
+            "evidence": [],
+            "reasoning": "Graphs note initializeMasterTokenId-> _mint and 'mints to address(1)'. No burn/update shown. This causes permanent dilution and mispricing across ERC4626 flows.",
+            "properties": {
+                "graph_name": "SystemArchitecture",
+                "source_files": [
+                    "src/AvKATVault.sol"
+                ],
+                "affected_functions": [
+                    "initializeMasterTokenId"
+                ]
+            },
+            "created_by": "agent_20250930_002051",
+            "reported_by_model": "OpenAI:gpt-5",
+            "junior_model": "OpenAI:gpt-5-mini",
+            "senior_model": "OpenAI:gpt-5",
+            "session_id": null,
+            "visibility": "global",
+            "created_at": "2025-09-30T06:07:16.227330",
+            "id": "hyp_5567f4addaaa"
+        },
+        "hyp_78444df06106": {
+            "title": "Executor delegatecall can clobber ReentrancyGuard status and bypass nonReentrant",
+            "description": "VULNERABILITY TYPE: security_issue\nROOT CAUSE: claimAndSwap delegatecalls external executor while nonReentrant is active; delegated code executes in Swapper storage context and can write ReentrancyGuard._status\nATTACK VECTOR: Malicious/compromised executor writes _status to NOT_ENTERED and reenters claimAndSwap or other functions to drain/misroute funds or corrupt state\nAFFECTED NODES: func_claimAndSwap, modifier_nonReentrant, contract_Swapper\nAFFECTED CODE: src/Swapper.sol: claimAndSwap (nonReentrant) performs executor.delegatecall(...), OpenZeppelin ReentrancyGuard: private uint256 _status (slot 0)\nSEVERITY: high\nREASONING: Delegatecall grants write access to caller storage; Swapper has only ReentrancyGuard storage, which can be flipped, nullifying the intended protection and enabling reentrancy or control-flow abuse.",
+            "vulnerability_type": "security_issue",
+            "severity": "high",
+            "confidence": 0.6,
+            "status": "proposed",
+            "node_refs": [
+                "func_claimAndSwap",
+                "modifier_nonReentrant",
+                "contract_Swapper"
+            ],
+            "evidence": [],
+            "reasoning": "Delegatecall grants write access to caller storage; Swapper has only ReentrancyGuard storage, which can be flipped, nullifying the intended protection and enabling reentrancy or control-flow abuse.",
+            "properties": {
+                "graph_name": "SystemArchitecture",
+                "source_files": [
+                    "src/Swapper.sol"
+                ],
+                "affected_functions": []
+            },
+            "created_by": "agent_20250930_002051",
+            "reported_by_model": "OpenAI:gpt-5",
+            "junior_model": "OpenAI:gpt-5-mini",
+            "senior_model": "OpenAI:gpt-5",
+            "session_id": null,
+            "visibility": "global",
+            "created_at": "2025-09-30T06:57:34.801372",
+            "id": "hyp_78444df06106"
+        }
+    },
+    "metadata": {
+        "total": 25,
+        "confirmed": 0,
+        "last_modified": "2025-09-30T06:57:34.802661"
+    }
+}

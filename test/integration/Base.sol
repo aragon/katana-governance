@@ -112,6 +112,11 @@ contract Base is ERC721Holder, Test {
         vm.warp(block.timestamp + 20);
         vm.roll(block.number + 20);
 
+        // Deploy test tokens
+        tokenA = address(new MockERC20());
+        tokenB = address(new MockERC20());
+        tokenC = address(new MockERC20());
+
         executor = new Executor();
 
         _deployVault();
@@ -133,13 +138,6 @@ contract Base is ERC721Holder, Test {
         merklDistributor = MerklDistributor(merklDistributor_);
 
         merkleTree = new MerkleTree();
-
-        tokenA = address(new MockERC20());
-        tokenB = address(new MockERC20());
-        tokenC = address(new MockERC20());
-
-        MockERC20(tokenA).mint(address(merklDistributor), 1000e18);
-        MockERC20(tokenB).mint(address(merklDistributor), 1000e18);
     }
 
     function _deployOsx() internal {
@@ -260,31 +258,41 @@ contract Base is ERC721Holder, Test {
 
     // ===== HELPERS ============
 
-    function buildMerkleTree(address _user, uint256 _tokenAAmount, uint256 _tokenBAmount) internal {
-        // Alice  has 50e18 on tokenA and 15e18 on tokenB
-        leaves.push(keccak256(abi.encode(_user, tokenA, _tokenAAmount)));
-        leaves.push(keccak256(abi.encode(_user, tokenB, _tokenBAmount)));
+    function buildMerkleTree(
+        address _user,
+        address[] memory _tokens,
+        uint256[] memory _amounts
+    )
+        internal
+        returns (bytes32[][] memory proofs)
+    {
+        proofs = new bytes32[][](_tokens.length);
+
+        for (uint256 i = 0; i < _tokens.length; i++) {
+            leaves.push(keccak256(abi.encode(_user, _tokens[i], _amounts[i])));
+
+            // user has to allow swapper to claim per each token.
+            vm.prank(_user);
+            merklDistributor.setClaimRecipient(address(swapper), _tokens[i]);
+
+            vm.prank(address(swapper));
+            MockERC20(_tokens[i]).approve(address(mockSwap), type(uint192).max);
+
+            MockERC20(_tokens[i]).mint(address(merklDistributor), 1000e18);
+        }
 
         root = merkleTree.getRoot(leaves);
 
         merklDistributor.updateTree(MerkleTreeStruct({ merkleRoot: root, ipfsHash: bytes32(0) }));
 
-        // Each user has to allow swapper to claim per each token.
-        vm.startPrank(_user);
-        merklDistributor.setClaimRecipient(address(swapper), address(tokenA));
-        merklDistributor.setClaimRecipient(address(swapper), address(tokenB));
-        vm.stopPrank();
-
         // required by merklDistributor.
         vm.warp(merklDistributor.endOfDisputePeriod() + 1);
 
-        vm.startPrank(address(swapper));
-        MockERC20(tokenA).approve(address(mockSwap), type(uint192).max);
-        MockERC20(tokenB).approve(address(mockSwap), type(uint192).max);
-        vm.stopPrank();
+        for (uint256 i = 0; i < _tokens.length; i++) {
+            proofs[i] = merkleTree.getProof(leaves, i);
+        }
     }
 
-    // ==================================== Helper Functions ==============================
     function buildClaimAndSwapParams(ClaimInput[] memory _claims)
         internal
         pure
