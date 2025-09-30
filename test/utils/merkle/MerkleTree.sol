@@ -3,19 +3,7 @@ pragma solidity ^0.8.17;
 
 import { Base } from "./Base.sol";
 
-/// @notice simple, kinda efficient (and improving!) Merkle proof generator and verifier using complete binary trees.
-/// @author dmfxyz
-/// @dev Note Merkle Tree implemented as a Complete Binary Tree. Merkle.sol uses full binary trees.
 contract MerkleTree is Base {
-    /**
-     *
-     * HASHING FUNCTION *
-     *
-     */
-    /// @notice Hash function used when verifying proofs.
-    /// @dev WARNING: This method is only used by verifyProof (inherited from MurkyBase.sol).
-    //                If modified, you **MUST** ensure the inline assembly methods in buildTree and getProof are
-    // modified to match.
     function hashLeafPairs(bytes32 left, bytes32 right) public pure override returns (bytes32 _hash) {
         assembly {
             switch lt(left, right)
@@ -31,7 +19,6 @@ contract MerkleTree is Base {
         }
     }
 
-    ///@dev internal function that builds initial *sparse* array that is the shell of a complete tree
     function _initTree(bytes32[] memory data) internal pure returns (bytes32[] memory) {
         require(data.length > 1, "wont generate root for single leaf");
 
@@ -47,11 +34,6 @@ contract MerkleTree is Base {
         return tree;
     }
 
-    /// @notice Builds array representation of a complete binary merkle tree from given data. Tree[0] will contain the
-    /// trees root.
-    /// @dev Visibility set to private rather than internal as there is likely useful composability with this function.
-    /// @param data The data to build the tree from. It should already be sorted if sorting is required.
-    /// @return tree as a standard array representation of a complete binary tree.
     function buildTree(bytes32[] memory data) private pure returns (bytes32[] memory) {
         bytes32[] memory tree = _initTree(data);
         assembly {
@@ -78,21 +60,12 @@ contract MerkleTree is Base {
         return tree;
     }
 
-    /// @notice Calculates the merkle tree root for a given set of data.
-    /// @param data The data to generate the root for. It should already be sorted if sorting is required.
-    /// @return root as bytes32.
     function getRoot(bytes32[] memory data) public pure override returns (bytes32) {
         require(data.length > 1, "wont generate root for single leaf");
         bytes32[] memory tree = buildTree(data);
         return tree[0];
     }
 
-    /// @notice Generates proof for given set of data and target index
-    /// @dev Note that this returns a dynamic memory array constructed via assembly.
-    ///      This may cause issues with certain REPL interpreters (e.g. Chisel).
-    /// @param data The data to generate the inclusion proof for. It should already be sorted if sorting is required.
-    /// @param index The index of the value in the data that you wish to generate the inclusion proof for
-    /// @return proof array that can subsequently be used by verifyProof or other libraries
     function getProof(bytes32[] memory data, uint256 index) public pure override returns (bytes32[] memory) {
         require(data.length > 1, "wont generate proof for single leaf");
         bytes32[] memory tree = buildTree(data);

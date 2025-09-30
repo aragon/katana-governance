@@ -2,25 +2,10 @@
 pragma solidity ^0.8.17;
 
 abstract contract Base {
-    /**
-     *
-     * CONSTRUCTOR *
-     *
-     */
     constructor() { }
 
-    /**
-     *
-     * VIRTUAL HASHING FUNCTIONS *
-     *
-     */
     function hashLeafPairs(bytes32 left, bytes32 right) public pure virtual returns (bytes32 _hash);
 
-    /**
-     *
-     * PROOF VERIFICATION *
-     *
-     */
     function verifyProof(
         bytes32 root,
         bytes32[] memory proof,
@@ -42,11 +27,6 @@ abstract contract Base {
         return root == rollingHash;
     }
 
-    /**
-     *
-     * PROOF GENERATION *
-     *
-     */
     function getRoot(bytes32[] memory data) public pure virtual returns (bytes32) {
         require(data.length > 1, "won't generate root for single leaf");
         while (data.length > 1) {
@@ -107,13 +87,6 @@ abstract contract Base {
         return result;
     }
 
-    /**
-     *
-     * MATH "LIBRARY" *
-     *
-     */
-
-    /// @dev  Note that x is assumed > 0
     function log2ceil(uint256 x) public pure returns (uint256) {
         uint256 ceil = 0;
         uint256 pOf2;
@@ -153,8 +126,6 @@ abstract contract Base {
         return ceil;
     }
 
-    /// Original bitmagic adapted from https://github.com/paulrberg/prb-math/blob/main/contracts/PRBMath.sol
-    /// @dev Note that x assumed > 1
     function log2ceilBitMagic(uint256 x) public pure returns (uint256) {
         if (x <= 1) {
             return 0;

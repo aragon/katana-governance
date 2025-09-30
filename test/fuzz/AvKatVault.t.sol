@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { Base } from "../integration/Base.sol";
+import { Base } from "../Base.sol";
 import { ERC721ReceiverMock } from "../mocks/MockERC721.sol";
 
 contract VaultWithdrawTest is Base {

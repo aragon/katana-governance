@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { Base } from "../Base.sol";
-import { AvKATVault } from "src/AvKATVault.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+
+import { Base } from "../../Base.sol";
+import { AvKATVault as Vault } from "src/AvKATVault.sol";
 
 contract VaultWithdrawTest is Base {
     function setUp() public override {
@@ -27,7 +29,7 @@ contract VaultWithdrawTest is Base {
 
         // Alice withdraws 50
         vm.expectEmit(true, true, true, true);
-        emit Withdraw(alice, alice, alice, withdrawAmount, withdrawAmount);
+        emit IERC4626.Withdraw(alice, alice, alice, withdrawAmount, withdrawAmount);
 
         vm.prank(alice);
         uint256 sharesAfter = vault.withdraw(withdrawAmount, alice, alice);
@@ -57,7 +59,7 @@ contract VaultWithdrawTest is Base {
         uint256 expectedTokenId = lockNft.tokenByIndex(lastIndex) + 2;
 
         vm.expectEmit();
-        emit TokenIdWithdrawn(expectedTokenId, receiver);
+        emit Vault.TokenIdWithdrawn(expectedTokenId, receiver);
 
         // alice withdraws and specifies `receiver` as recipient.
         vm.prank(alice);
@@ -104,7 +106,7 @@ contract VaultWithdrawTest is Base {
     }
 
     function testRevert_IfRecoversMasterTokenId() public {
-        vm.expectRevert(AvKATVault.CannotTransferMasterToken.selector);
+        vm.expectRevert(Vault.CannotTransferMasterToken.selector);
         vault.recoverNFT(masterTokenId, address(this));
     }
 
