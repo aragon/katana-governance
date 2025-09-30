@@ -3,18 +3,14 @@ pragma solidity ^0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
-import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 import { DAO } from "@aragon/osx/core/dao/DAO.sol";
 import { Multisig, MultisigSetup } from "@aragon/multisig/src/MultisigSetup.sol";
-import { MockERC20 } from "@mocks/MockERC20.sol";
-import { ILockedBalanceIncreasing } from "@escrow/IVotingEscrowIncreasing.sol";
 import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
 import { ProxyLib } from "@libs/ProxyLib.sol";
 import { PluginRepoFactory } from "@aragon/osx/framework/plugin/repo/PluginRepoFactory.sol";
 import { PluginSetupProcessor } from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
 import { PluginRepo } from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
-
 import { ProtocolFactoryBuilder } from "@aragon/protocol-factory/test/helpers/ProtocolFactoryBuilder.sol";
 import { ProtocolFactory } from "@aragon/protocol-factory/src/ProtocolFactory.sol";
 
@@ -26,10 +22,6 @@ import { VotingEscrowV1_2_0 as VotingEscrow } from "@escrow/VotingEscrowIncreasi
 import { ClockV1_2_0 as Clock } from "@clock/Clock_v1_2_0.sol";
 import { LockV1_2_0 as Lock } from "@lock/Lock_v1_2_0.sol";
 import { EscrowIVotesAdapter } from "@delegation/EscrowIVotesAdapter.sol";
-import { MockSwap } from "./mocks/MockSwap.sol";
-
-import { StdInvariant } from "forge-std/StdInvariant.sol";
-
 import { CurveConstantLib } from "@libs/CurveConstantLib.sol";
 import {
     GaugesDaoFactoryV1_4_0 as VeGovernanceFactory,
@@ -37,6 +29,8 @@ import {
     DeploymentParameters,
     TokenParameters
 } from "@factory/GaugesDaoFactory_v1_4_0.sol";
+
+import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
 
 import {
     Factory as KatFactory,
@@ -51,13 +45,12 @@ import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
 import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
 import { deployMerklDistributor } from "src/utils/Deployers.sol";
 import { Swapper } from "src/Swapper.sol";
-import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
-
-import { StdUtils } from "forge-std/StdUtils.sol";
-import { StdCheats } from "forge-std/StdCheats.sol";
 
 import { MerkleTreeHelper } from "./utils/merkle/MerkleTreeHelper.sol";
 import { SwapActionsBuilder } from "./utils/SwapActionsBuilder.sol";
+
+import { MockERC20 } from "@mocks/MockERC20.sol";
+import { MockSwap } from "./mocks/MockSwap.sol";
 
 contract Base is ERC721Holder, Test {
     // ve contracts

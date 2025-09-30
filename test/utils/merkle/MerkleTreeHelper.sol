@@ -4,11 +4,12 @@ pragma solidity ^0.8.17;
 import { CommonBase } from "forge-std/Base.sol";
 
 import { Distributor as MerklDistributor, MerkleTree as MerkleTreeStruct } from "@merkl/Distributor.sol";
+
 import { MerkleTree } from "./MerkleTree.sol";
 import { MockERC20 } from "@mocks/MockERC20.sol";
 
 contract MerkleTreeHelper is CommonBase {
-    MerklDistributor internal merklDistributor;
+    MerklDistributor public merklDistributor;
     address internal swapper;
     address internal swapperRouter;
     address internal governor;
@@ -48,7 +49,7 @@ contract MerkleTreeHelper is CommonBase {
             vm.prank(swapper);
             MockERC20(tokens[i]).approve(swapperRouter, type(uint192).max);
 
-            MockERC20(tokens[i]).mint(address(merklDistributor), 1000e18);
+            MockERC20(tokens[i]).mint(address(merklDistributor), amounts[i]);
         }
 
         // Update merkle root

@@ -15,6 +15,11 @@ fs_permissions = [
     { access = "write", path = "./artifacts" }
 ]
 
+[profile.default.invariant]
+fail_on_revert = true
+runs = 256
+depth = 64
+
 [fmt]
 single_line_statement_blocks = "multi"
 line_length = 120

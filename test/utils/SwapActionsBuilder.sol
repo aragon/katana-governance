@@ -3,9 +3,9 @@ pragma solidity ^0.8.17;
 
 import { CommonBase } from "forge-std/Base.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/Executor.sol";
-import { MockSwap } from "../mocks/MockSwap.sol";
 
 import { MockERC20 } from "@mocks/MockERC20.sol";
+import { MockSwap } from "../mocks/MockSwap.sol";
 
 contract SwapActionsBuilder is CommonBase {
     MockSwap internal mockSwap;
@@ -19,7 +19,7 @@ contract SwapActionsBuilder is CommonBase {
         address[] memory tokens,
         uint256[] memory amounts,
         address[] memory outputTokens,
-        uint256[] memory minAmountsOut
+        address[] memory recipients
     )
         public
         view
@@ -29,7 +29,8 @@ contract SwapActionsBuilder is CommonBase {
 
         for (uint256 i = 0; i < tokens.length; i++) {
             actions[i].to = address(mockSwap);
-            actions[i].data = abi.encodeCall(MockSwap.swap, (tokens[i], outputTokens[i], amounts[i]));
+            actions[i].data =
+                abi.encodeCall(MockSwap.swapToRecipient, (tokens[i], outputTokens[i], amounts[i], recipients[i]));
         }
 
         return actions;
@@ -40,18 +41,20 @@ contract SwapActionsBuilder is CommonBase {
         address[] memory tokens,
         uint256[] memory amounts,
         address outputToken,
-        uint256[] memory minAmountsOut
+        address recipient
     )
         public
         view
         returns (Action[] memory)
     {
         address[] memory outTokens = new address[](tokens.length);
+        address[] memory recipients = new address[](tokens.length);
 
         for (uint256 i = 0; i < tokens.length; i++) {
             outTokens[i] = outputToken;
+            recipients[i] = recipient;
         }
 
-        return buildSwapActions(tokens, amounts, outTokens, minAmountsOut);
+        return buildSwapActions(tokens, amounts, outTokens, recipients);
     }
 }

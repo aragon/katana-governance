@@ -89,10 +89,12 @@ contract Swapper is ISwapper, ReentrancyGuard {
                 lock.amount = (diff * _pct) / 100;
                 remaining = diff - lock.amount;
 
-                // approve should not revert even for non-compliant ERC20s as
+                // 1. approve should not revert even for non-compliant ERC20s as
                 // it only approves the exact amount that will be transfered
                 // from this contract, automatically setting allowance back to 0.
                 // we trust that escrow's createLockFor will transfer the whole lock.amount.
+                // 2. It's better to allow fail rather than silently succeed if `lock.amount`
+                // is less than minDeposit of escrow, so no need to add extra check and revert.
                 token.approve(address(escrow), lock.amount);
                 lock.tokenId = escrow.createLockFor(lock.amount, msg.sender);
             }

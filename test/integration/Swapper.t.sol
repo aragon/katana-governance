@@ -42,7 +42,7 @@ contract SwapperTest is Base {
     // both tokens are swapped into kat but autocompound is false, hence all kat tokens go to the user.
     function test_MultipleTokensSwappedAndAutoCompoundIsFalse() public {
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(alice, tokens, amounts);
-        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, address(token), new uint256[](0));
+        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, address(token), alice);
 
         assertEq(token.balanceOf(alice), 0);
         vm.prank(alice, alice);
@@ -55,7 +55,7 @@ contract SwapperTest is Base {
     // creates lock with some portion to locked and rest goes to user.
     function test_MultipleTokensSwappedAndCompoundIsEnabled() public {
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(alice, tokens, amounts);
-        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, address(token), new uint256[](0));
+        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, address(token), address(swapper));
 
         uint256 pct = 10;
         uint256 lockAmount = (pct * 130e18) / 100;
@@ -75,11 +75,15 @@ contract SwapperTest is Base {
     // // hence some portion goes to newly created lock, rest goes to user.
     function test_SingleTokenSwappedAndCompoundIsEnabled() public {
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(alice, tokens, amounts);
+
         address[] memory outTokens = new address[](2);
+        address[] memory recipients = new address[](2);
         outTokens[0] = address(token);
         outTokens[1] = address(tokenC);
+        recipients[0] = address(swapper);
+        recipients[1] = alice;
 
-        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, outTokens, new uint256[](0));
+        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, outTokens, recipients);
 
         assertEq(token.balanceOf(alice), 0);
 
@@ -99,7 +103,7 @@ contract SwapperTest is Base {
     // no tokens are swapped into kat, hence no kat increase on user.
     function test_NoTokenIsSwappedIntoKat() public {
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(alice, tokens, amounts);
-        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, tokenC, new uint256[](0));
+        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, tokenC, alice);
 
         assertEq(token.balanceOf(alice), 0);
         vm.prank(alice, alice);

@@ -43,7 +43,7 @@ contract AutoCompoundTest is Base {
     // tokenA swaps into token and tokenB swaps into token
     function test_ClaimsAndCompoundsAutomaticallyIfClaimedAmountIsNonZero() public {
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(address(autoCompoundStrategy), tokens, amounts);
-        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, address(token), new uint256[](0));
+        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, address(token), address(swapper));
 
         uint256 shares = autoCompoundStrategy.claimAndCompound(tokens, amounts, proofs, actions);
         assertNotEq(shares, 0);
@@ -52,7 +52,7 @@ contract AutoCompoundTest is Base {
     // tokenA swaps into tokenC and tokenB swaps into tokenC
     function test_ClaimsTokensButDoesnotDepositInVault() public {
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(address(autoCompoundStrategy), tokens, amounts);
-        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, tokenC, new uint256[](0));
+        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, tokenC, address(swapper));
 
         uint256 shares = autoCompoundStrategy.claimAndCompound(tokens, amounts, proofs, actions);
         assertEq(shares, 0);
@@ -74,7 +74,7 @@ contract AutoCompoundTest is Base {
         assertNotEq(gaugeBVotesBefore, 0);
 
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(address(autoCompoundStrategy), tokens, amounts);
-        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, address(token), new uint256[](0));
+        Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, address(token), address(swapper));
 
         autoCompoundStrategy.claimAndCompound(tokens, amounts, proofs, actions);
 
