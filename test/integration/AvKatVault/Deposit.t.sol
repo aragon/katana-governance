@@ -29,7 +29,7 @@ contract VaultDepositTest is Base {
         );
 
         vm.startPrank(alice);
-        token.approve(address(newVault), _parseToken(100));
+        escrowToken.approve(address(newVault), _parseToken(100));
 
         vm.expectRevert(Vault.MasterTokenNotSet.selector);
         newVault.deposit(_parseToken(100), alice);
@@ -38,7 +38,7 @@ contract VaultDepositTest is Base {
 
     function testRevert_IfNotOwner() public {
         vm.startPrank(alice);
-        token.approve(address(escrow), _parseToken(50));
+        escrowToken.approve(address(escrow), _parseToken(50));
         uint256 tokenId = escrow.createLock(_parseToken(50));
         vm.stopPrank();
 
@@ -69,7 +69,7 @@ contract VaultDepositTest is Base {
     function test_DepositToken() public {
         uint256 depositAmount = _parseToken(50);
 
-        uint256 assetBefore = token.balanceOf(alice);
+        uint256 assetBefore = escrowToken.balanceOf(alice);
         uint256 sharesBefore = vault.balanceOf(alice);
         uint256 totalAssetsBefore = vault.totalAssets();
 
@@ -87,7 +87,7 @@ contract VaultDepositTest is Base {
 
         assertEq(vault.balanceOf(alice), sharesBefore + depositAmount);
         assertEq(vault.totalAssets(), totalAssetsAfter);
-        assertEq(token.balanceOf(alice), assetBefore - depositAmount);
+        assertEq(escrowToken.balanceOf(alice), assetBefore - depositAmount);
         assertEq(escrow.locked(masterTokenId).amount, totalAssetsAfter);
         assertEq(shares, depositAmount);
     }
@@ -95,7 +95,7 @@ contract VaultDepositTest is Base {
     function test_Deposit() public {
         uint256 depositAmount = _parseToken(100);
 
-        uint256 assetBefore = token.balanceOf(alice);
+        uint256 assetBefore = escrowToken.balanceOf(alice);
         uint256 sharesBefore = vault.balanceOf(alice);
         uint256 totalAssetsBefore = vault.totalAssets();
 
@@ -109,7 +109,7 @@ contract VaultDepositTest is Base {
 
         assertEq(vault.balanceOf(alice), sharesBefore + shares);
         assertEq(vault.totalAssets(), totalAssetsAfter);
-        assertEq(token.balanceOf(alice), assetBefore - depositAmount);
+        assertEq(escrowToken.balanceOf(alice), assetBefore - depositAmount);
         assertEq(escrow.locked(masterTokenId).amount, totalAssetsAfter);
 
         assertEq(shares, depositAmount);

@@ -47,7 +47,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
     )
         public
         nonReentrant
-        returns (uint256 diff, uint256 tokenId)
+        returns (uint256 tokenAmountGained, uint256 tokenId)
     {
         // make sure percentage is never more than 100.
         if (_pct > 100) {
@@ -77,17 +77,17 @@ contract Swapper is ISwapper, ReentrancyGuard {
 
         uint256 afterAmount = token.balanceOf(address(this));
 
-        diff = afterAmount - beforeAmount;
+        tokenAmountGained = afterAmount - beforeAmount;
         Locked memory lock;
 
-        // If diff > 0, then kat token balance was increased on this contract.
+        // If tokenAmountGained > 0, then kat token balance was increased on this contract.
         // If pct > 0, create a lock with percentage and send rest to sender.
         // If pct = 0, send whole amount to sender.
-        if (diff > 0) {
-            uint256 remaining = diff;
+        if (tokenAmountGained > 0) {
+            uint256 remaining = tokenAmountGained;
             if (_pct > 0) {
-                lock.amount = (diff * _pct) / 100;
-                remaining = diff - lock.amount;
+                lock.amount = (tokenAmountGained * _pct) / 100;
+                remaining = tokenAmountGained - lock.amount;
 
                 // 1. approve should not revert even for non-compliant ERC20s as
                 // it only approves the exact amount that will be transfered
@@ -106,6 +106,6 @@ contract Swapper is ISwapper, ReentrancyGuard {
 
         emit ClaimAndSwapped(msg.sender, _claim.tokens, _claim.amounts, _pct, lock);
 
-        return (diff, lock.tokenId);
+        return (tokenAmountGained, lock.tokenId);
     }
 }

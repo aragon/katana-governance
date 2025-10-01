@@ -60,7 +60,7 @@ contract Base is ERC721Holder, Test {
     Multisig internal multisig;
     Lock internal lockNft;
     AddressGaugeVoter internal voter;
-    MockERC20 internal token;
+    MockERC20 internal escrowToken;
 
     // kat contracts
     uint256 internal masterTokenId;
@@ -120,7 +120,7 @@ contract Base is ERC721Holder, Test {
         vm.warp(voter.epochVoteStart() + 1);
 
         // set a masterTokenId on vault.
-        token.approve(address(escrow), 100e18);
+        escrowToken.approve(address(escrow), 100e18);
         masterTokenId = escrow.createLock(100e18);
         lockNft.transferFrom(address(this), address(vault), masterTokenId);
         vault.initializeMasterTokenId(masterTokenId);
@@ -217,7 +217,7 @@ contract Base is ERC721Holder, Test {
         lockNft = deps.gaugeVoterPluginSets[0].nftLock;
         multisig = Multisig(address(deps.multisigPlugin));
         voter = deps.gaugeVoterPluginSets[0].plugin;
-        token = MockERC20(tokenParameters[0].token);
+        escrowToken = MockERC20(tokenParameters[0].token);
     }
 
     function createTestToken(address[] memory holders) internal returns (address) {
@@ -245,10 +245,10 @@ contract Base is ERC721Holder, Test {
     }
 
     function _mintAndApprove(address _account, address _who, uint256 _amount) internal {
-        token.mint(_account, _amount);
-        uint256 currentAllowance = token.allowance(_account, _who);
+        escrowToken.mint(_account, _amount);
+        uint256 currentAllowance = escrowToken.allowance(_account, _who);
 
         vm.prank(_account);
-        token.approve(_who, currentAllowance + _amount);
+        escrowToken.approve(_who, currentAllowance + _amount);
     }
 }

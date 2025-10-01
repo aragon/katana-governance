@@ -26,11 +26,13 @@ interface ISwapper {
     /// @param _claim Tokens, their respective amounts to claim and merkle proofs for each.
     /// @param _actions The custom actions used to swap tokens in `_outputToken`.
     /// @param _pct How much percentage of swapped kat to create lock for.
+    /// @return tokenAmountGained Escrow token received from claims plus any other reward tokens swapped into it.
+    /// @return tokenId If `_pct` > 0, `tokenId` is the id of creation lock on escrow, otherwise 0.
     function claimAndSwap(
         Claim calldata _claim,
         Action[] calldata _actions,
         uint256 _pct
     )
         external
-        returns (uint256 diff, uint256 tokenId);
+        returns (uint256 tokenAmountGained, uint256 tokenId);
 }

@@ -24,7 +24,7 @@ contract VaultRedeemTest is Base {
 
         // before amounts
         uint256 totalAssetsBefore = vault.totalAssets();
-        uint256 assetsBefore = token.balanceOf(alice);
+        uint256 assetsBefore = escrowToken.balanceOf(alice);
         uint256 sharesBefore = vault.balanceOf(alice);
 
         // Alice redeems 50
