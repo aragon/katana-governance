@@ -7,6 +7,8 @@ import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/au
 import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 
+import { deployVault } from "src/utils/Deployers.sol";
+
 contract VaultWithdrawTest is Base {
     function setUp() public override {
         super.setUp();
@@ -14,6 +16,13 @@ contract VaultWithdrawTest is Base {
         _mintAndApprove(alice, address(vault), _parseToken(1000));
         _mintAndApprove(alice, address(escrow), _parseToken(1000));
         _mintAndApprove(bob, address(vault), _parseToken(1000));
+    }
+
+    function testRevert_IfMasterTokenNotSet() public {
+        (, address vault) = deployVault(address(dao), address(escrow), address(0), "Test Vault", "TEST");
+
+        vm.expectRevert(Vault.MasterTokenNotSet.selector);
+        Vault(vault).deposit(_parseToken(100), alice);
     }
 
     function test_withdraw() public {

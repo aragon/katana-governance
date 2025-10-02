@@ -9,6 +9,8 @@ import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IVotingEscrowCoreErrors } from "@escrow/IVotingEscrowIncreasing_v1_2_0.sol";
 
+import { deployVault } from "src/utils/Deployers.sol";
+
 contract VaultDepositTokenTest is Base {
     using ProxyLib for address;
 
@@ -22,22 +24,10 @@ contract VaultDepositTokenTest is Base {
     }
 
     function testRevert_IfMasterTokenNotSet() public {
-        address base = address(new Vault());
-
-        Vault newVault = Vault(
-            base.deployUUPSProxy(
-                abi.encodeCall(Vault.initialize, (address(dao), address(escrow), address(0), "Test Vault", "TEST"))
-            )
-        );
-
-        vm.startPrank(alice);
-        escrowToken.approve(address(escrow), _parseToken(50));
-        uint256 tokenId = escrow.createLock(_parseToken(50));
-        lockNft.setApprovalForAll(address(newVault), true);
+        (, address vault) = deployVault(address(dao), address(escrow), address(0), "Test Vault", "TEST");
 
         vm.expectRevert(Vault.MasterTokenNotSet.selector);
-        newVault.depositToken(tokenId, alice);
-        vm.stopPrank();
+        Vault(vault).deposit(_parseToken(100), alice);
     }
 
     function testRevert_IfNotOwner() public {

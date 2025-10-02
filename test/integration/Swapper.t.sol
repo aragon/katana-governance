@@ -39,6 +39,16 @@ contract SwapperTest is Base {
         swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), new Action[](0), 0);
     }
 
+    function testRevert_IfAliceClaimsWithBobsProof() public {
+        // Generate proof for bob
+        (bytes32[][] memory bobProofs,) = merkleTreeHelper.buildMerkleTree(bob, tokens, amounts);
+
+        // Alice tries to claim using Bob's proof
+        vm.expectRevert(Errors.InvalidProof.selector);
+        vm.prank(alice, alice);
+        swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, bobProofs), new Action[](0), 0);
+    }
+
     // both tokens are swapped into kat but autocompound is false, hence all kat tokens go to the user.
     function test_MultipleTokensSwappedAndAutoCompoundIsFalse() public {
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(alice, tokens, amounts);
