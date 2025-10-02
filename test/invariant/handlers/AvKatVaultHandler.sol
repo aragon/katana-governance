@@ -24,17 +24,18 @@ import { BaseHandler } from "./BaseHandler.sol";
 contract AvKatVaultHandler is BaseHandler {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    address public token; // token of escrow.
+    // This is not public in vault, so hardcode it.
+    uint256 public constant VIRTUAL_DECIMAL_OFFSET = 0;
 
+    address public token; // token of escrow.
     AvKATVault internal vault;
     MockERC20 internal assetToken;
 
+    // Ghost variables
     EnumerableSet.AddressSet internal actorsWithDepositedAssets;
-
-    mapping(address => uint256) internal actorAssets;
-
     uint256 public totalDeposited;
     uint256 public totalWithdrawn;
+    uint256 public totalDonated;
 
     constructor(AvKATVault _vault) {
         vault = _vault;
@@ -46,44 +47,121 @@ contract AvKatVaultHandler is BaseHandler {
 
     function deposit(uint256 _seed, uint256 _amount) public {
         address actor = useSender(_seed);
-        _amount = bound(_amount, 1, type(uint128).max);
+
+        // Ensure that user gets at least 1 share
+        // to avoid 100% donations through `deposit`.
+        uint256 atLeast = _minAssetsForNonZeroShares();
+        _amount = _bound(_amount, atLeast, type(uint128).max);
 
         deal(address(assetToken), actor, _amount);
 
         vm.startPrank(actor);
         assetToken.approve(address(vault), _amount);
-        uint256 shares = vault.deposit(_amount, actor);
+        vault.deposit(_amount, actor);
         vm.stopPrank();
 
+        // Ghost state.
         actorsWithDepositedAssets.add(actor);
-        actorAssets[actor] += _amount;
+        totalDeposited += _amount;
+    }
 
+    function depositToken(uint256 _seed, uint256 _amount) public {
+        address actor = useSender(_seed);
+
+        // Ensure that user gets at least 1 share
+        // to avoid 100% donations through `deposit`.
+        uint256 atLeast = _minAssetsForNonZeroShares();
+        _amount = _bound(_amount, atLeast, type(uint128).max);
+
+        deal(address(assetToken), actor, _amount);
+
+        // Create a lock on escrow first
+        vm.startPrank(actor);
+        assetToken.approve(address(vault.escrow()), _amount);
+        uint256 tokenId = vault.escrow().createLock(_amount);
+
+        // Deposit the token into vault
+        vault.lockNft().approve(address(vault), tokenId);
+        vault.depositToken(tokenId, actor);
+        vm.stopPrank();
+
+        // Ghost state.
+        actorsWithDepositedAssets.add(actor);
         totalDeposited += _amount;
     }
 
     function withdraw(uint256 _seed, uint256 _amount) public {
         uint256 len = actorsWithDepositedAssets.length();
-        if (len == 0) {
-            return;
-        }
+        if (len == 0) return;
 
         address actor = actorsWithDepositedAssets.at(_bound(_seed, 0, len - 1));
-
-        if (actorAssets[actor] == 0) {
-            return;
-        }
-
-        _amount = _bound(_amount, 1, actorAssets[actor]);
+        _amount = _bound(_amount, 1, vault.convertToAssets(vault.balanceOf(actor)));
 
         vm.prank(actor);
         vault.withdraw(_amount, actor, actor);
 
-        actorAssets[actor] -= _amount;
+        // Ghost state
+        uint256 balance = vault.balanceOf(actor);
+        if (balance == 0 || vault.convertToAssets(balance) == 0) {
+            actorsWithDepositedAssets.remove(actor);
+        }
 
         totalWithdrawn += _amount;
     }
 
-    function redeem(uint256 _actorIndex, uint256 _seed, uint256 _count, uint256 _pct) public { }
+    function redeem(uint256 _seed, uint256 _sharesPct) public {
+        uint256 len = actorsWithDepositedAssets.length();
+        if (len == 0) return;
 
-    // Helper Functions
+        address actor = actorsWithDepositedAssets.at(_bound(_seed, 0, len - 1));
+        uint256 actorShares = vault.balanceOf(actor);
+
+        // Redeem a percentage of actor's shares (1-100%)
+        uint256 sharesToRedeem = (_bound(_sharesPct, 1, 100) * actorShares) / 100;
+        if (sharesToRedeem == 0) sharesToRedeem = 1;
+
+        vm.prank(actor);
+        uint256 assets = vault.redeem(sharesToRedeem, actor, actor);
+
+        // Ghost state
+        uint256 balance = vault.balanceOf(actor);
+        if (balance == 0 || vault.convertToAssets(balance) == 0) {
+            actorsWithDepositedAssets.remove(actor);
+        }
+
+        totalWithdrawn += assets;
+    }
+
+    function donate(uint256 _seed, uint256 _amount) public {
+        address actor = useSender(_seed);
+        _amount = _bound(_amount, 1, type(uint128).max);
+
+        deal(address(assetToken), actor, _amount);
+
+        vm.startPrank(actor);
+        assetToken.approve(address(vault), _amount);
+        vault.donate(_amount);
+        vm.stopPrank();
+
+        // Donation increases totalAssets but does NOT mint shares
+        // This increases share value for all existing holders
+        totalDonated += _amount;
+    }
+
+    // ======== Helper Functions =========
+
+    function _minAssetsForNonZeroShares() private view returns (uint256) {
+        uint256 numerator = vault.totalAssets() + 1;
+        uint256 denominator = vault.totalSupply() + 10 ** VIRTUAL_DECIMAL_OFFSET;
+
+        // ceil(numerator / denominator)
+        return (numerator + denominator - 1) / denominator;
+    }
+
+    function sumOfActorShares() public view returns (uint256 total) {
+        for (uint256 i = 0; i < actorsWithDepositedAssets.length(); i++) {
+            address actor = actorsWithDepositedAssets.at(i);
+            total += vault.balanceOf(actor);
+        }
+    }
 }

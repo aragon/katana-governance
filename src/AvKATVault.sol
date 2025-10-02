@@ -9,7 +9,8 @@ import { ERC721HolderUpgradeable as ERC721Holder } from
     "@openzeppelin/contracts-upgradeable/token/ERC721/utils/ERC721HolderUpgradeable.sol";
 import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { SafeERC20Upgradeable as SafeERC20 } from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 
 import { VotingEscrow, EscrowIVotesAdapter, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 
@@ -204,6 +205,22 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
         emit Deposit(msg.sender, _receiver, assets, shares);
 
         return shares;
+    }
+
+    /// @notice Allows to donate the assets only without minting shares.
+    ///         This increases assets causing each share to cost more.
+    /// @param _assets How much to donate.
+    function donate(uint256 _assets) public virtual masterTokenSet {
+        SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), _assets);
+
+        IERC20(asset()).approve(address(escrow), _assets);
+
+        // creates a lock which transfers assets to escrow.
+        uint256 tokenId = escrow.createLock(_assets);
+
+        // merge newly created token to Vault's
+        // single tokenid for accumulation.
+        escrow.merge(tokenId, masterTokenId);
     }
 
     /// @notice send veNFT mistakenly transferred to `_receiver`.

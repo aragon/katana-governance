@@ -10,7 +10,6 @@ abstract contract BaseHandler is StdUtils, StdCheats, CommonBase {
     address[] internal actors;
 
     constructor() {
-        // Setup initial actors
         for (uint256 i = 0; i < 3; i++) {
             actors.push(address(uint160(0x1000 + i)));
         }
