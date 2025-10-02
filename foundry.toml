@@ -8,7 +8,7 @@ optimizer = true
 optimizer_runs = 2000
 bytecode_hash = "none"
 cbor_metadata = false
-verbosity = 3
+verbosity = 5
 
 fs_permissions = [
     { access = "read", path = "./multisig-members.json" },
@@ -21,7 +21,7 @@ runs = 256
 depth = 64
 
 [fmt]
-single_line_statement_blocks = "multi"
+single_line_statement_blocks = "preserve"
 line_length = 120
 int_types = "long"
 bracket_spacing = true

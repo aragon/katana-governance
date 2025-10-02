@@ -89,13 +89,14 @@ contract AutoCompoundStrategy is Initializable, UUPSUpgradeable, DaoAuthorizable
         (uint256 claimedAmount,) = swapper.claimAndSwap(claimTokens, _actions, 0);
 
         // If claimedAmount is greater than 0, autocompound received some amounts on `token`.
-        // Hence automatically deposit it into vault. Requires approval before deposit.
+        // Donate to vault to increase totalAssets without minting shares.
+        // This increases the value of all existing shares proportionally.
         if (claimedAmount > 0) {
             IERC20(token).approve(address(vault), claimedAmount);
-            return vault.deposit(claimedAmount, address(this));
+            vault.donate(claimedAmount);
         }
 
-        return 0;
+        return claimedAmount;
     }
 
     // =========== Upgrade Related Functions ===========

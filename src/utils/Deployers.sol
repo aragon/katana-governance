@@ -15,7 +15,6 @@ function deployVault(
     address _dao,
     address _escrow,
     address _strategy,
-    address _token,
     string memory _name,
     string memory _symbol
 )
