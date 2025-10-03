@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.17;
+
+import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
+
+interface IVaultNFT {
+    event Sweep(uint256 tokenId, address receiver);
+    event TokenIdWithdrawn(uint256 tokenId, address receiver);
+    event TokenIdDepositted(uint256 tokenId, address sender);
+
+    error CannotTransferMasterToken();
+    error MasterTokenAlreadySet();
+    error TokenIdCannotBeZero();
+
+    /// @notice Allows to set up masterTokenId initially.
+    function initializeMasterTokenId(uint256 _tokenId) external;
+
+    /// @notice deposit tokenId into the vault.
+    /// @dev The assets amount derivation is up to the implementation.
+    function depositTokenId(uint256 _tokenId, address _receiver) external returns (uint256 shares);
+
+    /// @notice Withdraws shares through custom logic of strategy
+    ///         and returns the new tokenId that holds `_assets`.
+    function withdrawTokenId(uint256 _assets, address _receiver, address _owner) external returns (uint256 tokenId);
+
+    /// @notice send veNFT mistakenly transferred to vault to `_receiver`.
+    function recoverNFT(uint256 _tokenId, address _receiver) external;
+}

@@ -7,7 +7,7 @@ import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { Swapper } from "src/Swapper.sol";
-import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
+import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
 import { VKatMetadata } from "src/VKatMetadata.sol";
 import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
 

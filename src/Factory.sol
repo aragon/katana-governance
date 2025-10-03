@@ -15,7 +15,7 @@ import { AccessControlManager } from "@merkl/AccessControlManager.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
 import { VKatMetadata } from "src/VKatMetadata.sol";
 import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
-import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
+import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
 
 import { MockERC20 } from "@mocks/MockERC20.sol";
 
@@ -57,13 +57,8 @@ contract Factory {
     }
 
     function deployOnce(DeploymentParameters memory _params) public returns (Deployment memory) {
-        if (owner != msg.sender) {
-            revert("NOT_OWNER");
-        }
-
-        if (deps.vault != address(0)) {
-            revert("ALREADY_DEPLOYED");
-        }
+        if (owner != msg.sender) revert("NOT_OWNER");
+        if (deps.vault != address(0)) revert("ALREADY_DEPLOYED");
 
         // ======== Deploys Vkat Related contracts ========
 

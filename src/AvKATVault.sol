@@ -18,9 +18,10 @@ import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
     "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
-import { IStrategy } from "src/interfaces/IStrategy.sol";
+import { IStrategyNFT as IStrategy } from "src/interfaces/IStrategyNFT.sol";
+import { IVaultNFT } from "src/interfaces/IVaultNFT.sol";
 
-contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, DaoAuthorizable {
+contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IVaultNFT, DaoAuthorizable {
     using SafeERC20 for IERC20;
 
     /// @notice bytes32 identifier for admin role functions.
@@ -28,9 +29,6 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
 
     /// @notice bytes32 identifier of sweeper that can withdraw mistakenly depositted funds.
     bytes32 public constant SWEEPER_ROLE = keccak256("SWEEPER_ROLE");
-
-    /// @notice The ivotes adapter, responsible for delegation activities.
-    EscrowIVotesAdapter public ivotesAdapter;
 
     /// @notice The escrow contract address.
     VotingEscrow public escrow;
@@ -41,18 +39,25 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
     /// @notice The strategy contract that holds the master token and handles escrow operations.
     IStrategy public strategy;
 
-    event StrategySet(address strategy);
-    event Sweep(uint256 tokenId, address receiver);
-    event TokenIdWithdrawn(uint256 tokenId, address receiver);
+    /// The single tokenId that this vault will hold and
+    /// will contain all users' token ids accumulated.
+    uint256 public masterTokenId;
 
-    error CannotTransferMasterToken();
-    error TokenNotOwned();
     error StrategyNotSet();
+    error SameStrategyNotAllowed();
+
+    event StrategySet(address strategy);
+    event AssetsDonated(uint256 assets);
 
     constructor() {
         _disableInitializers();
     }
 
+    /// @param _dao The dao address.
+    /// @param _escrow The escrow contract providing the asset and NFT tokens.
+    /// @param _strategy The IStrategyNFT interface contract address.
+    /// @param _name The name of the share token minted by this vault.
+    /// @param _symbol The symbol of the share token minted by this vault.
     function initialize(
         address _dao,
         address _escrow,
@@ -70,7 +75,6 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
 
         __ERC4626_init(IERC20(escrow.token()));
 
-        ivotesAdapter = EscrowIVotesAdapter(escrow.ivotesAdapter());
         lockNft = LockNFT(escrow.lockNFT());
 
         if (_strategy != address(0)) {
@@ -79,7 +83,7 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
     }
 
     /// @dev Deposit/Withdraws can only occur if strategy is set.
-    modifier strategySet() {
+    modifier whenStrategySet() {
         if (address(strategy) == address(0)) {
             revert StrategyNotSet();
         }
@@ -87,13 +91,31 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
         _;
     }
 
-    function initVault() public reinitializer(2) {
-        uint256 totalAssets_ = totalAssets();
-        if (totalAssets_ == 0) {
-            revert("fuck off");
+    /// @inheritdoc IVaultNFT
+    /// @dev To set up the master tokenId, an existing tokenId must be
+    ///      transferred here and `initialize` called. This allows creation
+    ///      to happen later if no lock existed at deployment.
+    function initializeMasterTokenId(uint256 _tokenId) external reinitializer(2) {
+        // While most nft escrows will not allow to have tokenId = 0,
+        // for safety reasons, it's better to still not allow such master token.
+        if (_tokenId == 0) {
+            revert TokenIdCannotBeZero();
         }
 
-        _mint(address(this), totalAssets_);
+        if (masterTokenId != 0) {
+            revert MasterTokenAlreadySet();
+        }
+
+        // mint according shares to sender.
+        uint256 assetAmount = escrow.locked(_tokenId).amount;
+        lockNft.safeTransferFrom(msg.sender, address(this), _tokenId);
+        _mint(msg.sender, convertToShares(assetAmount));
+
+        masterTokenId = _tokenId;
+
+        if (address(strategy) != address(0)) {
+            _sendMasterTokenToStrategy();
+        }
     }
 
     /// @notice Allows to change a strategy contract.
@@ -102,50 +124,24 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
         _setStrategy(_strategy);
     }
 
-    /// @dev As Vault allows to deposit already created tokenId locks,
-    ///      this means that actual amount of assets can not be depositted
-    ///      in vault(it stays in escrow), hence using the basic `totalAssets`
-    ///      implementation, such as from OZ will not reflect the correct
-    ///      depositted amounts. The master token is now held by the strategy.
+    /*//////////////////////////////////////////////////////////////
+                        ERC4626 OVERRIDDEN LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /// @dev If a strategy is active, it is responsible for holding the assets
+    ///      and reporting totalAssets. Otherwise, if a masterTokenId exists,
+    ///      retrieve the total balance associated with it from the escrow.
     function totalAssets() public view virtual override returns (uint256) {
         if (address(strategy) == address(0)) {
-            return 0;
+            if (masterTokenId == 0) return 0;
+
+            return escrow.locked(masterTokenId).amount;
         }
 
         return strategy.totalAssets();
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        ERC4626 OVERRIDDEN LOGIC
-    //////////////////////////////////////////////////////////////*/
-
-    function _withdraw(
-        address _caller,
-        address _receiver,
-        address _owner,
-        uint256 _assets,
-        uint256 _shares
-    )
-        internal
-        virtual
-        override
-        strategySet
-    {
-        if (_caller != _owner) {
-            _spendAllowance(_owner, _caller, _shares);
-        }
-
-        _burn(_owner, _shares);
-
-        // Strategy handles split and transfer to receiver
-        uint256 tokenId = strategy.handleWithdraw(_receiver, _assets);
-
-        emit Withdraw(_caller, _receiver, _owner, _assets, _shares);
-
-        emit TokenIdWithdrawn(tokenId, _receiver);
-    }
-
-    /// @dev Transfer `assets` from caller to Vault, then to Strategy.
+    /// @notice Transfer `assets` from caller to Vault, then to Strategy.
     ///      User must have approved `Vault` for this.
     function _deposit(
         address _caller,
@@ -156,28 +152,43 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
         internal
         virtual
         override
-        strategySet
+        whenStrategySet
     {
         super._deposit(_caller, _receiver, _assets, _shares);
 
         // Approve strategy so it can transfer `_assets`.
         IERC20(asset()).approve(address(strategy), _assets);
 
-        // Transfer assets to strategy
-        // SafeERC20.safeTransfer(IERC20(asset()), address(strategy), _assets);
-
         // Strategy handles createLock and merge to masterTokenId
-        strategy.handleDeposit(_assets);
+        strategy.deposit(_assets);
+    }
+
+    /// @notice Overrides withdraw function from ERC4626 to allow
+    ///         custom logic through strategy.
+    function _withdraw(
+        address _caller,
+        address _receiver,
+        address _owner,
+        uint256 _assets,
+        uint256 _shares
+    )
+        internal
+        virtual
+        override
+        whenStrategySet
+    {
+        _withdrawWithTokenId(_caller, _receiver, _owner, _assets, _shares);
     }
 
     /*//////////////////////////////////////////////////////////////
                        AvKatVault Functions
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev If `tokenId` position is already created on escrow,
-    ///      this allows to still deposit which will mint the shares
-    ///      depending on the amount that tokenId lock was created on escrow.
-    function depositToken(uint256 _tokenId, address _receiver) public virtual strategySet returns (uint256) {
+    /// @inheritdoc IVaultNFT
+    /// @dev Allows deposits even if `_tokenId` is already created in the escrow.
+    ///      Shares are minted based on the amount locked for that tokenId in the escrow.
+    function depositTokenId(uint256 _tokenId, address _receiver) public virtual whenStrategySet returns (uint256) {
+        address sender = _msgSender();
         uint256 assets = escrow.locked(_tokenId).amount;
 
         require(assets <= maxDeposit(_receiver), "ERC4626: deposit more than max");
@@ -187,36 +198,78 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
         // Reverts if the caller does not own a veNFT.
         // If `amount` on tokenId is 0, either merge or withdrawal occurred in which case
         // `transferFrom` will anyways fail.
-        lockNft.transferFrom(msg.sender, address(strategy), _tokenId);
+        lockNft.transferFrom(sender, address(strategy), _tokenId);
 
         // Strategy handles merge to masterTokenId
-        strategy.handleDepositToken(_tokenId);
+        strategy.depositTokenId(_tokenId);
 
         _mint(_receiver, shares);
 
-        emit Deposit(msg.sender, _receiver, assets, shares);
+        emit Deposit(sender, _receiver, assets, shares);
+        emit TokenIdDepositted(_tokenId, sender);
 
         return shares;
+    }
+
+    /// @inheritdoc IVaultNFT
+    function withdrawTokenId(
+        uint256 _assets,
+        address _receiver,
+        address _owner
+    )
+        public
+        virtual
+        returns (uint256 tokenId)
+    {
+        uint256 shares = previewWithdraw(_assets);
+        return _withdrawWithTokenId(_msgSender(), _receiver, _owner, _assets, shares);
+    }
+
+    /// @dev Core withdraw logic that both `_withdraw` and `withdrawTokenId` rely on.
+    function _withdrawWithTokenId(
+        address _caller,
+        address _receiver,
+        address _owner,
+        uint256 _assets,
+        uint256 _shares
+    )
+        internal
+        returns (uint256 tokenId)
+    {
+        if (_caller != _owner) {
+            _spendAllowance(_owner, _caller, _shares);
+        }
+
+        _burn(_owner, _shares);
+
+        // Strategy handles split and transfer to receiver
+        tokenId = strategy.withdraw(_receiver, _assets);
+
+        emit Withdraw(_caller, _receiver, _owner, _assets, _shares);
+        emit TokenIdWithdrawn(tokenId, _receiver);
     }
 
     /// @notice Allows to donate the assets only without minting shares.
     ///         This increases assets causing each share to cost more.
     /// @param _assets How much to donate.
-    function donate(uint256 _assets) public virtual strategySet {
-        SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), _assets);
+    function donate(uint256 _assets) public virtual whenStrategySet {
+        SafeERC20.safeTransferFrom(IERC20(asset()), _msgSender(), address(this), _assets);
 
         // Approve strategy so it can transfer `_assets`.
         IERC20(asset()).approve(address(strategy), _assets);
 
         // Strategy handles createLock and merge to masterTokenId
-        strategy.handleDeposit(_assets);
+        strategy.deposit(_assets);
+
+        emit AssetsDonated(_assets);
     }
 
-    /// @notice send veNFT mistakenly transferred to vault to `_receiver`.
-    /// @dev If veNFT was deposited through `depositToken`, it would
-    ///      be merged, hence such veNFTs can not be recovered.
-    ///      This function only works for NFTs held by the vault, not the strategy.
+    /// @inheritdoc IVaultNFT
     function recoverNFT(uint256 _tokenId, address _receiver) external auth(SWEEPER_ROLE) {
+        if (_tokenId == masterTokenId) {
+            revert CannotTransferMasterToken();
+        }
+
         lockNft.safeTransferFrom(address(this), _receiver, _tokenId);
 
         emit Sweep(_tokenId, _receiver);
@@ -225,9 +278,34 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, Da
     /// @dev Allows an admin to set a new strategy contract.
     ///      Note: The strategy now holds the master token, not the vault.
     function _setStrategy(address _strategy) internal virtual {
+        address currentStrategy = address(strategy);
+        if (currentStrategy == _strategy) {
+            revert SameStrategyNotAllowed();
+        }
+
         strategy = IStrategy(_strategy);
 
+        // If the strategy was set, retire it and get masterTokenId back.
+        if (currentStrategy != address(0)) {
+            IStrategy(currentStrategy).retireStrategy();
+        }
+
+        // Send masterTokenId to the new strategy.
+        if (masterTokenId != 0 && _strategy != address(0)) {
+            _sendMasterTokenToStrategy();
+        }
+
         emit StrategySet(_strategy);
+    }
+
+    /// @notice Sends master token to strategy.
+    /// @dev Caller's responsibility to ensure that `strategy` and masterTokenId are both set.
+    function _sendMasterTokenToStrategy() internal virtual {
+        // transfer masterTokenId to new strategy
+        lockNft.safeTransferFrom(address(this), address(strategy), masterTokenId);
+
+        // let new strategy what the master token id is
+        strategy.receiveMasterToken(masterTokenId);
     }
 
     // =========== Upgrade Related Functions ===========

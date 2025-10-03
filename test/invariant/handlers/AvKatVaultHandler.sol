@@ -82,7 +82,7 @@ contract AvKatVaultHandler is BaseHandler {
 
         // Deposit the token into vault
         vault.lockNft().approve(address(vault), tokenId);
-        vault.depositToken(tokenId, actor);
+        vault.depositTokenId(tokenId, actor);
         vm.stopPrank();
 
         // Ghost state.

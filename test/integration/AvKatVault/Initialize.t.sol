@@ -3,17 +3,41 @@ pragma solidity ^0.8.17;
 
 import { Base } from "../../Base.sol";
 
-import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
+import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
+import { deployVault } from "src/utils/Deployers.sol";
+import { AvKATVault as Vault } from "src/AvKATVault.sol";
+import { IVaultNFT as IVault } from "src/interfaces/IVaultNFT.sol";
 
 contract VaultInitializeTest is Base {
     function setUp() public override {
         super.setUp();
     }
 
-    // TODO: GIORGI add more tests
+    function test_Initialize() public view {
+        assertEq(address(vault.strategy()), address(acStrategy));
+        assertEq(vault.masterTokenId(), masterTokenId);
+    }
+
+    function testReverts_IfTokenNotApprovedOrOwned() public {
+        (, address newVault) = deployVault(address(dao), address(escrow), address(0), "name", "symbol");
+
+        // Create a token but don't transfer it to the vault
+        escrowToken.approve(address(escrow), 1);
+        uint256 wrongTokenId = escrow.createLock(1);
+
+        vm.expectRevert();
+        Vault(newVault).initializeMasterTokenId(wrongTokenId);
+    }
 
     function test_CanOnlyBeCalledOnce() public {
-        vm.expectRevert(AutoCompoundStrategy.MasterTokenAlreadySet.selector);
-        // autoCompoundStrategy.initializeMasterTokenId(masterTokenId);
+        vm.expectRevert("Initializable: contract is already initialized");
+        vault.initializeMasterTokenId(masterTokenId);
+    }
+
+    function testReverts_IfTokenIdCannotBeZero() public {
+        (, address newVault) = deployVault(address(dao), address(escrow), address(0), "name", "symbol");
+
+        vm.expectRevert(IVault.TokenIdCannotBeZero.selector);
+        Vault(newVault).initializeMasterTokenId(0);
     }
 }

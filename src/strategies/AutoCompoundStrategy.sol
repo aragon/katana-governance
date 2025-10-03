@@ -21,19 +21,14 @@ import { AvKATVault } from "src/AvKATVault.sol";
 import { Swapper } from "src/Swapper.sol";
 import { ISwapper } from "src/interfaces/ISwapper.sol";
 import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
+import { IStrategyNFT } from "src/interfaces/IStrategyNFT.sol";
 import { IStrategy } from "src/interfaces/IStrategy.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
-contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, DaoAuthorizable, IStrategy {
+contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, DaoAuthorizable, IStrategyNFT {
     using SafeERC20 for IERC20;
 
     ///@notice The bytes32 identifier for admin role functions.
     bytes32 public constant AUTOCOMPOUND_STRATEGY_ADMIN_ROLE = keccak256("AUTOCOMPOUND_STRATEGY_ADMIN_ROLE");
-
-    error MasterTokenAlreadySet();
-    error StrategyDoesNotOwnToken();
-    error OnlyVaultCanCall();
-    error MasterTokenNotSet();
 
     /// @notice The gauge voter where this contract votes for gauges.
     GaugeVoter public voter;
@@ -59,7 +54,7 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
     /// @notice The single tokenId that this strategy holds and manages
     uint256 public masterTokenId;
 
-    /// @notice The address that this strategy delegates voting power to
+    /// @notice The address that this strategy delegates voting power to.
     address public delegatee;
 
     /// @dev Ensures only the vault can call this function
@@ -67,6 +62,7 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
         if (msg.sender != address(vault)) {
             revert OnlyVaultCanCall();
         }
+
         _;
     }
 
@@ -75,6 +71,7 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
         if (masterTokenId == 0) {
             revert MasterTokenNotSet();
         }
+
         _;
     }
 
@@ -96,10 +93,11 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
         __ERC721Holder_init();
 
         escrow = VotingEscrow(_escrow);
-        voter = GaugeVoter(escrow.voter());
-        swapper = Swapper(_swapper);
         ivotesAdapter = EscrowIVotesAdapter(escrow.ivotesAdapter());
         lockNft = LockNFT(escrow.lockNFT());
+        voter = GaugeVoter(escrow.voter());
+
+        swapper = Swapper(_swapper);
 
         vault = AvKATVault(_vault);
         token = vault.asset();
@@ -111,7 +109,7 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
 
     /// @notice Sets the delegatee address for voting power delegation.
     /// @param _delegatee The address to delegate voting power to.
-    function setDelegatee(address _delegatee) external auth(AUTOCOMPOUND_STRATEGY_ADMIN_ROLE) {
+    function delegate(address _delegatee) public virtual auth(AUTOCOMPOUND_STRATEGY_ADMIN_ROLE) {
         delegatee = _delegatee;
         if (_delegatee != address(0)) {
             ivotesAdapter.delegate(_delegatee);
@@ -131,7 +129,8 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
         bytes32[][] calldata _proofs,
         Action[] calldata _actions
     )
-        external
+        public
+        virtual
         returns (uint256)
     {
         // which tokens to claim for with their proofs and amounts.
@@ -143,54 +142,65 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
         // Donate to vault to increase totalAssets without minting shares.
         // This increases the value of all existing shares proportionally.
         if (claimedAmount > 0) {
-            IERC20(token).approve(address(vault), claimedAmount);
-            vault.donate(claimedAmount);
+            _deposit(claimedAmount);
+            // IERC20(token).approve(address(vault), claimedAmount);
+            // vault.donate(claimedAmount);
         }
 
         return claimedAmount;
     }
 
+    /// @notice Votes on gauge voter with `_votes`.
+    /// @dev The caller must invoke `delegate` with this strategy’s address, effectively delegating to itself.
+    /// @param _votes The gauges and their weights to vote for.
+    function vote(GaugeVoter.GaugeVote[] calldata _votes) external auth(AUTOCOMPOUND_STRATEGY_ADMIN_ROLE) {
+        voter.vote(_votes);
+    }
+
     /*//////////////////////////////////////////////////////////////
-                        IStrategy Implementation
+                        IStrategyNFT Implementation
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Handles deposit by creating lock and merging to master token.
-    /// @param _amount Amount of assets to deposit.
-    function handleDeposit(uint256 _amount) external {
+    /// @inheritdoc IStrategy
+    function deposit(uint256 _amount) public virtual {
         IERC20(token).safeTransferFrom(msg.sender, address(this), _amount);
-        IERC20(token).approve(address(escrow), _amount);
-        uint256 tokenId = escrow.createLock(_amount);
 
-        if (masterTokenId == 0) {
-            masterTokenId = tokenId;
-        } else {
-            escrow.merge(tokenId, masterTokenId);
-        }
+        _deposit(_amount);
     }
 
-    /// @notice Handles deposit of existing token by merging to master token.
-    /// @param tokenId The token ID to merge.
-    function handleDepositToken(uint256 tokenId) external onlyVault masterTokenSet {
+    /// @inheritdoc IStrategyNFT
+    function depositTokenId(uint256 _tokenId) public virtual onlyVault masterTokenSet {
         // Merge the received token to master token
-        escrow.merge(tokenId, masterTokenId);
+        escrow.merge(_tokenId, masterTokenId);
     }
 
-    /// @notice Handles withdrawal by splitting master token and transferring to receiver.
-    /// @param receiver The address to receive the split token.
-    /// @param assets Amount of assets to withdraw.
-    function handleWithdraw(address receiver, uint256 assets) external onlyVault masterTokenSet returns (uint256) {
+    /// @inheritdoc IStrategy
+    function withdraw(address _receiver, uint256 _assets) public virtual onlyVault masterTokenSet returns (uint256) {
         // Split the master token
-        uint256 newTokenId = escrow.split(masterTokenId, assets);
+        uint256 newTokenId = escrow.split(masterTokenId, _assets);
 
         // Transfer the new token to receiver
-        lockNft.safeTransferFrom(address(this), receiver, newTokenId);
+        lockNft.safeTransferFrom(address(this), _receiver, newTokenId);
 
         return newTokenId;
     }
 
+    /// @inheritdoc IStrategyNFT
+    function receiveMasterToken(uint256 _masterTokenId) public virtual onlyVault {
+        masterTokenId = _masterTokenId;
+    }
+
+    /// @inheritdoc IStrategy
+    function retireStrategy() public virtual onlyVault {
+        // For safety reasons, revoke current delegatee
+        ivotesAdapter.delegate(address(0));
+
+        lockNft.safeTransferFrom(address(this), address(vault), masterTokenId);
+    }
+
     /// @notice Returns the total assets managed by the strategy.
     /// @return The total amount of assets locked in the master token.
-    function totalAssets() external view returns (uint256) {
+    function totalAssets() public view virtual returns (uint256) {
         if (masterTokenId == 0) {
             return 0;
         }
@@ -198,8 +208,22 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
         return escrow.locked(masterTokenId).amount;
     }
 
-    // =========== Upgrade Related Functions ===========
-    function _authorizeUpgrade(address) internal override auth(AUTOCOMPOUND_STRATEGY_ADMIN_ROLE) { }
+    /*//////////////////////////////////////////////////////////////
+                        Internal/Private
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Creates a lock and merges it into master.
+    function _deposit(uint256 _amount) internal virtual {
+        IERC20(token).approve(address(escrow), _amount);
+        uint256 tokenId = escrow.createLock(_amount);
+
+        escrow.merge(tokenId, masterTokenId);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        Upgrade
+    //////////////////////////////////////////////////////////////*/
+    function _authorizeUpgrade(address) internal virtual override auth(AUTOCOMPOUND_STRATEGY_ADMIN_ROLE) { }
 
     function implementation() external view returns (address) {
         return _getImplementation();

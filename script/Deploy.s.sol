@@ -26,7 +26,7 @@ import {
 } from "@factory/GaugesDaoFactory_v1_4_0.sol";
 
 import { VKatMetadata } from "src/VKatMetadata.sol";
-import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
+import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
 
 import { MockERC20 } from "@mocks/MockERC20.sol";

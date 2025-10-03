@@ -42,7 +42,7 @@ import {
 import { AvKATVault } from "src/AvKATVault.sol";
 import { VKatMetadata } from "src/VKatMetadata.sol";
 import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
-import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
+import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
 import { deployMerklDistributor } from "src/utils/Deployers.sol";
 import { Swapper } from "src/Swapper.sol";
 
@@ -66,7 +66,7 @@ contract Base is ERC721Holder, Test {
     uint256 internal masterTokenId;
     AvKATVault public vault;
     Swapper internal swapper;
-    AutoCompoundStrategy internal autoCompoundStrategy;
+    AutoCompoundStrategy internal acStrategy;
     MerklDistributor internal merklDistributor;
     uint8 internal decimals;
 
@@ -111,21 +111,20 @@ contract Base is ERC721Holder, Test {
         dao.grant(address(lockNft), address(this), lockNft.LOCK_ADMIN_ROLE());
         dao.grant(address(escrow), address(this), escrow.ESCROW_ADMIN_ROLE());
         dao.grant(address(voter), address(this), voter.GAUGE_ADMIN_ROLE());
-        dao.grant(address(autoCompoundStrategy), address(this), autoCompoundStrategy.AUTOCOMPOUND_STRATEGY_ADMIN_ROLE());
+        dao.grant(address(acStrategy), address(this), acStrategy.AUTOCOMPOUND_STRATEGY_ADMIN_ROLE());
         vm.stopPrank();
 
-        // allow escrow split feature and nft transfers as well.
+        // allow escrow splitt feature and nft transfers as well.
         lockNft.setWhitelisted(address(vault), true);
-        lockNft.setWhitelisted(address(autoCompoundStrategy), true);
+        lockNft.setWhitelisted(address(acStrategy), true); // TODO: GIORGI are we sure we need this ?
         escrow.enableSplit();
         vm.warp(voter.epochVoteStart() + 1);
 
-        // set a masterTokenId on strategy with 0 initial amount
-        // OZ ERC4626 already protects against first depositor attack with virtual assets
-        escrowToken.approve(address(vault), 100e18);
-        vault.deposit(100e18, address(this));
-        // autoCompoundStrategy.createLock(strategyStartAmount);
-        // vault.initVault();
+        // set a masterTokenId on vault.
+        escrowToken.approve(address(escrow), 100e18);
+        masterTokenId = escrow.createLock(100e18);
+        lockNft.approve(address(vault), masterTokenId);
+        vault.initializeMasterTokenId(masterTokenId);
 
         // Deploy merkle tree helper
         address mockSwap = address(new MockSwap());
@@ -156,7 +155,7 @@ contract Base is ERC721Holder, Test {
 
         vault = AvKATVault(katDeployment.vault);
         swapper = Swapper(katDeployment.swapper);
-        autoCompoundStrategy = AutoCompoundStrategy(katDeployment.autoCompoundStrategy);
+        acStrategy = AutoCompoundStrategy(katDeployment.autoCompoundStrategy);
     }
 
     function _deployVe(address _daoExecutor) internal {
@@ -226,7 +225,7 @@ contract Base is ERC721Holder, Test {
         MockERC20 newToken = new MockERC20();
 
         for (uint256 i = 0; i < holders.length; i++) {
-            newToken.mint(holders[i], 8888888e18);
+            newToken.mint(holders[i], 5000 ether);
         }
 
         decimals = newToken.decimals();
@@ -240,10 +239,9 @@ contract Base is ERC721Holder, Test {
 
     function _increaseTotalAsset(uint256 _amount) internal {
         _mintAndApprove(address(this), address(escrow), _amount);
-        uint256 tokenId = escrow.createLock(_amount);
-        lockNft.transferFrom(address(this), address(autoCompoundStrategy), tokenId);
-        vm.startPrank(address(autoCompoundStrategy));
-        escrow.merge(tokenId, autoCompoundStrategy.masterTokenId());
+        uint256 tokenId = escrow.createLockFor(_amount, address(acStrategy));
+        vm.startPrank(address(acStrategy));
+        escrow.merge(tokenId, vault.masterTokenId());
         vm.stopPrank();
     }
 

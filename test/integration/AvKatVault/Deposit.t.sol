@@ -52,14 +52,14 @@ contract VaultDepositTest is Base {
     // TODO: GIORGI think about this ?
     function test_vaultEmpty() public view {
         // // Master token starts with minDeposit amount, vault starts empty with OZ virtual assets protection
-        // uint256 amount = escrow.locked(autoCompoundStrategy.masterTokenId()).amount;
+        // uint256 amount = escrow.locked(masterTokenId).amount;
         // assertEq(amount, escrow.minDeposit());
 
         // assertEq(vault.totalAssets(), amount);
         // assertEq(vault.totalSupply(), 0); // No shares minted yet, OZ handles first depositor attack
     }
 
-    function test_Deposit() public {
+    function test_1_Deposit() public {
         uint256 depositAmount = _parseToken(100);
 
         uint256 assetBefore = escrowToken.balanceOf(alice);
@@ -77,7 +77,7 @@ contract VaultDepositTest is Base {
         assertEq(vault.balanceOf(alice), sharesBefore + shares);
         assertEq(vault.totalAssets(), totalAssetsAfter);
         assertEq(escrowToken.balanceOf(alice), assetBefore - depositAmount);
-        assertEq(escrow.locked(autoCompoundStrategy.masterTokenId()).amount, totalAssetsAfter);
+        assertEq(escrow.locked(masterTokenId).amount, totalAssetsAfter);
 
         assertEq(shares, depositAmount);
     }
@@ -133,8 +133,11 @@ contract VaultDepositTest is Base {
         _mintAndApprove(bob, address(vault), _parseToken(100));
 
         // Bob donates first to increase share value
+        uint256 donateAmount = _parseToken(100);
+        vm.expectEmit(true, true, true, true);
+        emit Vault.AssetsDonated(donateAmount);
         vm.prank(bob);
-        vault.donate(_parseToken(100));
+        vault.donate(donateAmount);
 
         uint256 depositAmount = _parseToken(100);
         uint256 totalAssetsBefore = vault.totalAssets();
@@ -152,12 +155,12 @@ contract VaultDepositTest is Base {
 
     function test_DepositCreatesAndMergesTokenIntoMasterToken() public {
         uint256 depositAmount = _parseToken(100);
-        uint256 masterTokenAmountBefore = escrow.locked(autoCompoundStrategy.masterTokenId()).amount;
+        uint256 masterTokenAmountBefore = escrow.locked(masterTokenId).amount;
 
         vm.prank(alice);
         vault.deposit(depositAmount, alice);
 
-        uint256 masterTokenAmountAfter = escrow.locked(autoCompoundStrategy.masterTokenId()).amount;
+        uint256 masterTokenAmountAfter = escrow.locked(masterTokenId).amount;
 
         // Master token should have increased by deposit amount
         assertEq(masterTokenAmountAfter, masterTokenAmountBefore + depositAmount);

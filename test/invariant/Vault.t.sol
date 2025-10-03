@@ -30,13 +30,12 @@ contract VaultInvariant is StdInvariant, Base {
     }
 
     function invariant_strategyOwnsMasterTokenOnly() public view {
-        uint256 masterTokenId = autoCompoundStrategy.masterTokenId();
         address owner = vault.lockNft().ownerOf(masterTokenId);
 
-        assertEq(owner, address(autoCompoundStrategy), "Strategy must always own master token");
+        assertEq(owner, address(acStrategy), "Strategy must always own master token");
 
         // Strategy should only hold the master token, no other NFTs
-        uint256 strategyNftBalance = vault.lockNft().balanceOf(address(autoCompoundStrategy));
+        uint256 strategyNftBalance = vault.lockNft().balanceOf(address(acStrategy));
         assertEq(strategyNftBalance, 1, "Strategy should only hold master token NFT");
     }
 
@@ -47,17 +46,18 @@ contract VaultInvariant is StdInvariant, Base {
     }
 
     function invariant_strategyDelegation() public view {
-        uint256 masterTokenId = autoCompoundStrategy.masterTokenId();
-        address delegatee = autoCompoundStrategy.delegatee();
+        address delegatee = acStrategy.delegatee();
 
         if (delegatee == address(0)) {
             return;
         }
 
         // If delegatee is set, master token must be delegated to it
-        assertTrue(ivotesAdapter.tokenIsDelegated(masterTokenId), "Master token must be delegated when delegatee is set");
+        assertTrue(
+            ivotesAdapter.tokenIsDelegated(masterTokenId), "Master token must be delegated when delegatee is set"
+        );
 
-        address actualDelegatee = ivotesAdapter.delegates(address(autoCompoundStrategy));
+        address actualDelegatee = ivotesAdapter.delegates(address(acStrategy));
         assertEq(actualDelegatee, delegatee, "Strategy must delegate to configured delegatee");
     }
 
@@ -65,7 +65,7 @@ contract VaultInvariant is StdInvariant, Base {
 
     function invariant_totalAssetsInEscrow() public view {
         uint256 vaultTotalAssets = vault.totalAssets();
-        uint256 escrowLocked = escrow.locked(autoCompoundStrategy.masterTokenId()).amount;
+        uint256 escrowLocked = escrow.locked(masterTokenId).amount;
 
         assertEq(vaultTotalAssets, escrowLocked, "Vault total assets must equal escrow locked amount");
     }
@@ -116,17 +116,9 @@ contract VaultInvariant is StdInvariant, Base {
     function invariant_sumOfSharesEqualsTotalSupply() public view {
         uint256 totalSupply = vault.totalSupply();
         uint256 sumOfActorShares = h.sumOfActorShares();
-        uint256 address1Shares = vault.balanceOf(address(1));
+        uint256 address1Shares = vault.balanceOf(address(this));
 
         assertEq(sumOfActorShares + address1Shares, totalSupply, "Sum of all shares must equal total supply");
-    }
-
-    function invariant_address1InitialMint() public view {
-        // address(1) should have shares equal to initial master token amount
-        uint256 address1Balance = vault.balanceOf(address(1));
-
-        // This should be > 0 after initializeMasterTokenId
-        assertTrue(address1Balance > 0, "address(1) must have initial shares to prevent first depositor attack");
     }
 
     function invariant_donationsIncreaseShareValue() public view {

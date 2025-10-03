@@ -5,12 +5,20 @@ import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/au
 
 import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
+import { IStrategy } from "src/interfaces/IStrategy.sol";
+import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
+import { deployAutoCompoundStrategy } from "src/utils/Deployers.sol";
 
 contract VaultSetStrategyTest is Base {
-    address internal newStrategy = vm.createWallet("newStrategy").addr;
+    address internal newStrategy;
 
     function setUp() public override {
         super.setUp();
+
+        (, address newStrategy_) = deployAutoCompoundStrategy(
+            address(dao), address(escrow), address(swapper), address(vault), address(merklDistributor)
+        );
+        newStrategy = newStrategy_;
     }
 
     function testRevert_IfCallerNotAuthorized() public {
@@ -23,9 +31,7 @@ contract VaultSetStrategyTest is Base {
         vault.setStrategy(newStrategy);
     }
 
-    function test_SetStrategy() public {
-        address oldStrategy = address(vault.strategy());
-
+    function test_SetsStrategy() public {
         vm.expectEmit(true, true, true, true);
         emit Vault.StrategySet(newStrategy);
 
@@ -40,15 +46,9 @@ contract VaultSetStrategyTest is Base {
         assertEq(address(vault.strategy()), address(0));
     }
 
-    function test_SetStrategySameAddress() public {
-        address currentStrategy = address(vault.strategy());
-
-        vm.expectEmit(true, true, true, true);
-        emit Vault.StrategySet(currentStrategy);
-
-        vault.setStrategy(currentStrategy);
-
-        assertEq(address(vault.strategy()), currentStrategy);
+    function testRevert_IfSetSameStrategy() public {
+        vm.expectRevert(Vault.SameStrategyNotAllowed.selector);
+        vault.setStrategy(address(acStrategy));
     }
 
     function test_SetStrategyAfterDeposit() public {
@@ -60,12 +60,22 @@ contract VaultSetStrategyTest is Base {
         vault.deposit(amount, alice);
 
         uint256 totalAssetsBefore = vault.totalAssets();
+        address oldStrategy = address(vault.strategy());
+
+        // Verify old strategy owns the master token before
+        assertEq(lockNft.ownerOf(masterTokenId), oldStrategy);
 
         // Change strategy
         vault.setStrategy(newStrategy);
 
-        // Verify vault state unchanged
+        // Verify vault state
         assertEq(address(vault.strategy()), newStrategy);
         assertEq(vault.totalAssets(), totalAssetsBefore);
+
+        // Verify master token was transferred to new strategy
+        assertEq(lockNft.ownerOf(masterTokenId), newStrategy);
+
+        // Verify new strategy has the correct master token ID
+        assertEq(IStrategy(newStrategy).totalAssets(), totalAssetsBefore);
     }
 }

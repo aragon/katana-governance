@@ -75,13 +75,13 @@ contract VaultWithdrawTest is Base {
         assertEq(escrow.lastLockId(), _users.length + 1);
         assertEq(vault.totalAssets(), totalAssetsBefore + totalDepositAmount);
         assertEq(vault.totalSupply(), totalSharesBefore + totalDepositShares);
-        assertEq(escrow.locked(autoCompoundStrategy.masterTokenId()).amount, totalAssetsBefore + totalDepositAmount);
+        assertEq(escrow.locked(masterTokenId).amount, totalAssetsBefore + totalDepositAmount);
 
         if (_compoundAmount > 0) {
             _mintAndApprove(address(this), address(escrow), _compoundAmount);
-            uint256 tokenId = escrow.createLockFor(_compoundAmount, address(autoCompoundStrategy));
-            vm.startPrank(address(autoCompoundStrategy));
-            escrow.merge(tokenId, autoCompoundStrategy.masterTokenId());
+            uint256 tokenId = escrow.createLockFor(_compoundAmount, address(acStrategy));
+            vm.startPrank(address(acStrategy));
+            escrow.merge(tokenId, masterTokenId);
             vm.stopPrank();
         }
 
@@ -105,7 +105,7 @@ contract VaultWithdrawTest is Base {
         }
 
         assertEq(vault.totalAssets(), totalAssetsBefore - totalWithdrawAmount);
-        assertEq(escrow.locked(autoCompoundStrategy.masterTokenId()).amount, totalAssetsBefore - totalWithdrawAmount);
+        assertEq(escrow.locked(masterTokenId).amount, totalAssetsBefore - totalWithdrawAmount);
         assertEq(vault.totalSupply(), totalSharesBefore - totalWithdrawShares);
     }
 
