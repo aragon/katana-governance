@@ -31,7 +31,7 @@ contract VaultDonateTest is Base {
         vm.startPrank(alice);
         escrowToken.approve(address(newVault), _parseToken(100));
 
-        vm.expectRevert(Vault.MasterTokenNotSet.selector);
+        vm.expectRevert(Vault.StrategyNotSet.selector);
         newVault.donate(_parseToken(100));
         vm.stopPrank();
     }

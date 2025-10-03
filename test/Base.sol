@@ -114,16 +114,18 @@ contract Base is ERC721Holder, Test {
         dao.grant(address(autoCompoundStrategy), address(this), autoCompoundStrategy.AUTOCOMPOUND_STRATEGY_ADMIN_ROLE());
         vm.stopPrank();
 
-        // allow escrow splitt feature and nft transfers as well.
+        // allow escrow split feature and nft transfers as well.
         lockNft.setWhitelisted(address(vault), true);
+        lockNft.setWhitelisted(address(autoCompoundStrategy), true);
         escrow.enableSplit();
         vm.warp(voter.epochVoteStart() + 1);
 
-        // set a masterTokenId on vault.
-        escrowToken.approve(address(escrow), 100e18);
-        masterTokenId = escrow.createLock(100e18);
-        lockNft.transferFrom(address(this), address(vault), masterTokenId);
-        vault.initializeMasterTokenId(masterTokenId);
+        // set a masterTokenId on strategy with 0 initial amount
+        // OZ ERC4626 already protects against first depositor attack with virtual assets
+        escrowToken.approve(address(vault), 100e18);
+        vault.deposit(100e18, address(this));
+        // autoCompoundStrategy.createLock(strategyStartAmount);
+        // vault.initVault();
 
         // Deploy merkle tree helper
         address mockSwap = address(new MockSwap());
@@ -224,7 +226,7 @@ contract Base is ERC721Holder, Test {
         MockERC20 newToken = new MockERC20();
 
         for (uint256 i = 0; i < holders.length; i++) {
-            newToken.mint(holders[i], 5000 ether);
+            newToken.mint(holders[i], 8888888e18);
         }
 
         decimals = newToken.decimals();
@@ -238,9 +240,10 @@ contract Base is ERC721Holder, Test {
 
     function _increaseTotalAsset(uint256 _amount) internal {
         _mintAndApprove(address(this), address(escrow), _amount);
-        uint256 tokenId = escrow.createLockFor(_amount, address(vault));
-        vm.startPrank(address(vault));
-        escrow.merge(tokenId, vault.masterTokenId());
+        uint256 tokenId = escrow.createLock(_amount);
+        lockNft.transferFrom(address(this), address(autoCompoundStrategy), tokenId);
+        vm.startPrank(address(autoCompoundStrategy));
+        escrow.merge(tokenId, autoCompoundStrategy.masterTokenId());
         vm.stopPrank();
     }
 

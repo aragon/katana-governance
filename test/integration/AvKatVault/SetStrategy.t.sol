@@ -24,46 +24,31 @@ contract VaultSetStrategyTest is Base {
     }
 
     function test_SetStrategy() public {
-        address oldStrategy = vault.strategy();
+        address oldStrategy = address(vault.strategy());
 
         vm.expectEmit(true, true, true, true);
         emit Vault.StrategySet(newStrategy);
 
         vault.setStrategy(newStrategy);
 
-        assertEq(vault.strategy(), newStrategy);
-    }
-
-    function test_UpdatesDelegateeToNewStrategy() public {
-        // Check initial delegation
-        address initialStrategy = vault.strategy();
-        address delegatee = ivotesAdapter.delegates(address(vault));
-        assertEq(delegatee, initialStrategy);
-
-        // Set new strategy
-        vault.setStrategy(newStrategy);
-
-        // Check delegation changed to new strategy
-        delegatee = ivotesAdapter.delegates(address(vault));
-        assertEq(delegatee, newStrategy);
+        assertEq(address(vault.strategy()), newStrategy);
     }
 
     function test_SetStrategyToZeroAddress() public {
         vault.setStrategy(address(0));
 
-        assertEq(vault.strategy(), address(0));
-        assertEq(ivotesAdapter.delegates(address(vault)), address(0));
+        assertEq(address(vault.strategy()), address(0));
     }
 
     function test_SetStrategySameAddress() public {
-        address currentStrategy = vault.strategy();
+        address currentStrategy = address(vault.strategy());
 
         vm.expectEmit(true, true, true, true);
         emit Vault.StrategySet(currentStrategy);
 
         vault.setStrategy(currentStrategy);
 
-        assertEq(vault.strategy(), currentStrategy);
+        assertEq(address(vault.strategy()), currentStrategy);
     }
 
     function test_SetStrategyAfterDeposit() public {
@@ -79,9 +64,8 @@ contract VaultSetStrategyTest is Base {
         // Change strategy
         vault.setStrategy(newStrategy);
 
-        // Verify delegation changed but vault state unchanged
-        assertEq(vault.strategy(), newStrategy);
-        assertEq(ivotesAdapter.delegates(address(vault)), newStrategy);
+        // Verify vault state unchanged
+        assertEq(address(vault.strategy()), newStrategy);
         assertEq(vault.totalAssets(), totalAssetsBefore);
     }
 }

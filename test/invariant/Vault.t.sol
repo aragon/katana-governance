@@ -29,40 +29,43 @@ contract VaultInvariant is StdInvariant, Base {
         targetSelector(a);
     }
 
-    function invariant_vaultOwnsMasterTokenOnly() public view {
-        uint256 masterTokenId = vault.masterTokenId();
+    function invariant_strategyOwnsMasterTokenOnly() public view {
+        uint256 masterTokenId = autoCompoundStrategy.masterTokenId();
         address owner = vault.lockNft().ownerOf(masterTokenId);
 
-        assertEq(owner, address(vault), "Vault must always own master token");
+        assertEq(owner, address(autoCompoundStrategy), "Strategy must always own master token");
 
-        // Vault should only hold the master token, no other NFTs
+        // Strategy should only hold the master token, no other NFTs
+        uint256 strategyNftBalance = vault.lockNft().balanceOf(address(autoCompoundStrategy));
+        assertEq(strategyNftBalance, 1, "Strategy should only hold master token NFT");
+    }
+
+    function invariant_vaultHoldsNoNFTs() public view {
+        // Vault should not hold any NFTs (they are held by strategy)
         uint256 vaultNftBalance = vault.lockNft().balanceOf(address(vault));
-        assertEq(vaultNftBalance, 1, "Vault should only hold master token NFT");
+        assertEq(vaultNftBalance, 0, "Vault should not hold any NFTs");
     }
 
     function invariant_strategyDelegation() public view {
-        uint256 masterTokenId = vault.masterTokenId();
-        address currentStrategy = vault.strategy();
+        uint256 masterTokenId = autoCompoundStrategy.masterTokenId();
+        address delegatee = autoCompoundStrategy.delegatee();
 
-        if (currentStrategy == address(0)) {
-            address delegatee = ivotesAdapter.delegates(address(vault));
-            assertEq(delegatee, address(0), "Vault must not delegate when strategy is address(0)");
-
+        if (delegatee == address(0)) {
             return;
         }
 
-        // If strategy is set, master token must be delegated to it
-        assertTrue(ivotesAdapter.tokenIsDelegated(masterTokenId), "Master token must be delegated when strategy is set");
+        // If delegatee is set, master token must be delegated to it
+        assertTrue(ivotesAdapter.tokenIsDelegated(masterTokenId), "Master token must be delegated when delegatee is set");
 
-        address delegatee = ivotesAdapter.delegates(address(vault));
-        assertEq(delegatee, currentStrategy, "Vault must delegate to strategy");
+        address actualDelegatee = ivotesAdapter.delegates(address(autoCompoundStrategy));
+        assertEq(actualDelegatee, delegatee, "Strategy must delegate to configured delegatee");
     }
 
     // ==== ASSETS AND SHARES INVARIANTS ====
 
     function invariant_totalAssetsInEscrow() public view {
         uint256 vaultTotalAssets = vault.totalAssets();
-        uint256 escrowLocked = escrow.locked(vault.masterTokenId()).amount;
+        uint256 escrowLocked = escrow.locked(autoCompoundStrategy.masterTokenId()).amount;
 
         assertEq(vaultTotalAssets, escrowLocked, "Vault total assets must equal escrow locked amount");
     }

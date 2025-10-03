@@ -21,7 +21,7 @@ contract VaultWithdrawTest is Base {
     function testRevert_IfMasterTokenNotSet() public {
         (, address vault) = deployVault(address(dao), address(escrow), address(0), "Test Vault", "TEST");
 
-        vm.expectRevert(Vault.MasterTokenNotSet.selector);
+        vm.expectRevert(Vault.StrategyNotSet.selector);
         Vault(vault).deposit(_parseToken(100), alice);
     }
 
@@ -49,7 +49,7 @@ contract VaultWithdrawTest is Base {
         assertEq(sharesAfter, _parseToken(50));
         assertEq(vault.balanceOf(alice), sharesBefore - sharesAfter);
         assertEq(vault.totalAssets(), totalAssetsBefore - withdrawAmount);
-        assertEq(escrow.locked(masterTokenId).amount, totalAssetsBefore - withdrawAmount);
+        assertEq(escrow.locked(autoCompoundStrategy.masterTokenId()).amount, totalAssetsBefore - withdrawAmount);
     }
 
     function test_withdrawsToReceiver() public {
@@ -79,7 +79,7 @@ contract VaultWithdrawTest is Base {
         assertEq(shares, _parseToken(50));
         assertEq(lockNft.ownerOf(expectedTokenId), receiver);
         assertEq(escrow.locked(expectedTokenId).amount, withdrawAmount);
-        assertEq(escrow.locked(masterTokenId).amount, totalAssetsBefore - withdrawAmount);
+        assertEq(escrow.locked(autoCompoundStrategy.masterTokenId()).amount, totalAssetsBefore - withdrawAmount);
     }
 
     function test_withdrawWithAllowance() public {
@@ -258,12 +258,12 @@ contract VaultWithdrawTest is Base {
         vm.prank(alice);
         vault.deposit(depositAmount, alice);
 
-        uint256 masterTokenAmountBefore = escrow.locked(masterTokenId).amount;
+        uint256 masterTokenAmountBefore = escrow.locked(autoCompoundStrategy.masterTokenId()).amount;
 
         vm.prank(alice);
         vault.withdraw(withdrawAmount, alice, alice);
 
-        uint256 masterTokenAmountAfter = escrow.locked(masterTokenId).amount;
+        uint256 masterTokenAmountAfter = escrow.locked(autoCompoundStrategy.masterTokenId()).amount;
 
         // Master token should have decreased by withdraw amount
         assertEq(masterTokenAmountAfter, masterTokenAmountBefore - withdrawAmount);
@@ -334,6 +334,7 @@ contract VaultWithdrawTest is Base {
         vault.recoverNFT(tokenId, address(this));
     }
 
+    // TODO: GIORGI probably no need ?
     function testRevert_IfRecoversMasterTokenId() public {
         vm.expectRevert(Vault.CannotTransferMasterToken.selector);
         vault.recoverNFT(masterTokenId, address(this));

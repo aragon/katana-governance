@@ -26,7 +26,7 @@ contract VaultDepositTokenTest is Base {
     function testRevert_IfMasterTokenNotSet() public {
         (, address vault) = deployVault(address(dao), address(escrow), address(0), "Test Vault", "TEST");
 
-        vm.expectRevert(Vault.MasterTokenNotSet.selector);
+        vm.expectRevert(Vault.StrategyNotSet.selector);
         Vault(vault).deposit(_parseToken(100), alice);
     }
 

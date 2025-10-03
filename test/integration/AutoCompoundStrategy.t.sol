@@ -34,10 +34,22 @@ contract AutoCompoundTest is Base {
         vm.stopPrank();
     }
 
-    function testRevert_VoteIfNoPermission() public {
+    function test_SetDelegatee() public {
+        address newDelegatee = address(0x123);
+
+        autoCompoundStrategy.setDelegatee(newDelegatee);
+
+        assertEq(autoCompoundStrategy.delegatee(), newDelegatee);
+
+        // Check delegation happened
+        address actualDelegatee = ivotesAdapter.delegates(address(autoCompoundStrategy));
+        assertEq(actualDelegatee, newDelegatee);
+    }
+
+    function testRevert_SetDelegateeIfNoPermission() public {
         vm.expectRevert();
         vm.prank(address(1));
-        autoCompoundStrategy.vote(new GaugeVoter.GaugeVote[](0));
+        autoCompoundStrategy.setDelegatee(address(0x123));
     }
 
     // tokenA swaps into token and tokenB swaps into token
@@ -59,17 +71,25 @@ contract AutoCompoundTest is Base {
         assertEq(shares, 0);
     }
 
-    function test_Votes() public {
-        // To create a master token id, vault starts with already predefined amount.
-        // Hence, vault already has assets in it. This means we can vote as vp > 0.
+    function test_DelegationAndVoting() public {
+        // Set up delegatee EOA
+        address delegatee = address(0xDEAD);
+        autoCompoundStrategy.setDelegatee(delegatee);
+
+        // Verify delegation
+        address actualDelegatee = ivotesAdapter.delegates(address(autoCompoundStrategy));
+        assertEq(actualDelegatee, delegatee);
+
+        // Now the delegatee can vote directly on the voter with strategy's voting power
         GaugeVoter.GaugeVote[] memory votes = new IGaugeVoter.GaugeVote[](2);
         votes[0] = IGaugeVoter.GaugeVote(50, gaugeA);
         votes[1] = IGaugeVoter.GaugeVote(40, gaugeB);
 
-        autoCompoundStrategy.vote(votes);
+        vm.prank(delegatee);
+        voter.vote(votes);
 
-        uint256 gaugeAVotesBefore = voter.votes(address(autoCompoundStrategy), gaugeA);
-        uint256 gaugeBVotesBefore = voter.votes(address(autoCompoundStrategy), gaugeB);
+        uint256 gaugeAVotesBefore = voter.votes(delegatee, gaugeA);
+        uint256 gaugeBVotesBefore = voter.votes(delegatee, gaugeB);
 
         assertNotEq(gaugeAVotesBefore, 0);
         assertNotEq(gaugeBVotesBefore, 0);
@@ -80,17 +100,13 @@ contract AutoCompoundTest is Base {
 
         autoCompoundStrategy.claimAndCompound(tokens, amounts, proofs, actions);
 
-        // At this point, tokens got claimed and autocompounding caused
-        // increase of assets in vault. Though, it shouldn't cause auto-vote
-        // as we only update vp votes when new votes become less than current one.
-        assertEq(voter.votes(address(autoCompoundStrategy), gaugeA), gaugeAVotesBefore);
-        assertEq(voter.votes(address(autoCompoundStrategy), gaugeB), gaugeBVotesBefore);
+        // After compounding, delegatee can vote again with increased voting power
+        vm.prank(delegatee);
+        voter.vote(votes);
 
-        autoCompoundStrategy.vote(votes);
-
-        // We voted manually, so new votes for each gauge must be bigger.
-        assertGt(voter.votes(address(autoCompoundStrategy), gaugeA), gaugeAVotesBefore);
-        assertGt(voter.votes(address(autoCompoundStrategy), gaugeB), gaugeBVotesBefore);
+        // Voting power increased due to compounding
+        assertGt(voter.votes(delegatee, gaugeA), gaugeAVotesBefore);
+        assertGt(voter.votes(delegatee, gaugeB), gaugeBVotesBefore);
     }
 
     // ============= Upgrade Tests =============
