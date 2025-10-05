@@ -95,7 +95,7 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IV
     /// @dev To set up the master tokenId, an existing tokenId must be
     ///      transferred here and `initialize` called. This allows creation
     ///      to happen later if no lock existed at deployment.
-    function initializeMasterTokenId(uint256 _tokenId) external reinitializer(2) {
+    function initializeMasterTokenId(uint256 _tokenId) external virtual reinitializer(2) {
         // While most nft escrows will not allow to have tokenId = 0,
         // for safety reasons, it's better to still not allow such master token.
         if (_tokenId == 0) {
@@ -265,7 +265,7 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IV
     }
 
     /// @inheritdoc IVaultNFT
-    function recoverNFT(uint256 _tokenId, address _receiver) external auth(SWEEPER_ROLE) {
+    function recoverNFT(uint256 _tokenId, address _receiver) external virtual auth(SWEEPER_ROLE) {
         if (_tokenId == masterTokenId) {
             revert CannotTransferMasterToken();
         }
@@ -309,12 +309,12 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IV
     }
 
     // =========== Upgrade Related Functions ===========
-    function _authorizeUpgrade(address) internal override auth(VAULT_ADMIN_ROLE) { }
+    function _authorizeUpgrade(address) internal virtual override auth(VAULT_ADMIN_ROLE) { }
 
     function implementation() external view returns (address) {
         return _getImplementation();
     }
 
     /// @dev Reserved storage space to allow for layout changes in the future.
-    uint256[45] private __gap;
+    uint256[46] private __gap;
 }

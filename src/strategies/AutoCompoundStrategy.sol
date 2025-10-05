@@ -153,7 +153,7 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
     /// @notice Votes on gauge voter with `_votes`.
     /// @dev The caller must invoke `delegate` with this strategy’s address, effectively delegating to itself.
     /// @param _votes The gauges and their weights to vote for.
-    function vote(GaugeVoter.GaugeVote[] calldata _votes) external auth(AUTOCOMPOUND_STRATEGY_ADMIN_ROLE) {
+    function vote(GaugeVoter.GaugeVote[] calldata _votes) external virtual auth(AUTOCOMPOUND_STRATEGY_ADMIN_ROLE) {
         voter.vote(_votes);
     }
 
@@ -230,5 +230,5 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
     }
 
     /// @dev Reserved storage space to allow for layout changes in the future.
-    uint256[40] private __gap;
+    uint256[41] private __gap;
 }
