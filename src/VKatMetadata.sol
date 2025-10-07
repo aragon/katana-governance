@@ -64,21 +64,21 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizable, UUPSUpgradeable {
             revert ZeroAddress();
         }
 
-        if (rewardTokens.contains(_token)) {
+        bool added = rewardTokens.add(_token);
+        if (!added) {
             revert TokenAlreadyInWhitelist(_token);
         }
 
-        rewardTokens.add(_token);
         emit RewardTokenAdded(_token);
     }
 
     /// @inheritdoc IVKatMetadata
     function removeRewardToken(address _token) external auth(ADMIN_ROLE) {
-        if (!rewardTokens.contains(_token)) {
+        bool removed = rewardTokens.remove(_token);
+        if (!removed) {
             revert TokenNotInWhitelist(_token);
         }
 
-        rewardTokens.remove(_token);
         emit RewardTokenRemoved(_token);
     }
 
@@ -138,11 +138,22 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizable, UUPSUpgradeable {
             revert LengthMismatch();
         }
 
-        // Validate that reward token is already added by admin in a whitelist.
-        for (uint256 i = 0; i < _preferences.rewardTokens.length; i++) {
-            address token = _preferences.rewardTokens[i];
+        address[] memory tokens = _preferences.rewardTokens;
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            address token = tokens[i];
+
+            // Validate that reward token is already
+            // added by admin in a whitelist.
             if (!isRewardToken(token)) {
                 revert TokenNotWhitelisted(token);
+            }
+
+            // Ensure for no duplicate addresses
+            for (uint256 j = i + 1; j < tokens.length; j++) {
+                if (tokens[j] == token) {
+                    revert DuplicateRewardToken();
+                }
             }
         }
     }

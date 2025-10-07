@@ -30,6 +30,13 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
     ///@notice The bytes32 identifier for admin role functions.
     bytes32 public constant AUTOCOMPOUND_STRATEGY_ADMIN_ROLE = keccak256("AUTOCOMPOUND_STRATEGY_ADMIN_ROLE");
 
+    ///@notice The bytes32 identifier for vote function.
+    bytes32 public constant AUTOCOMPOUND_STRATEGY_VOTE_ROLE = keccak256("AUTOCOMPOUND_STRATEGY_VOTE_ROLE");
+
+    ///@notice The bytes32 identifier for claimAndCompound function.
+    bytes32 public constant AUTOCOMPOUND_STRATEGY_CLAIM_COMPOUND_ROLE =
+        keccak256("AUTOCOMPOUND_STRATEGY_CLAIM_COMPOUND_ROLE");
+
     /// @notice The gauge voter where this contract votes for gauges.
     GaugeVoter public voter;
 
@@ -56,6 +63,12 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
 
     /// @notice The address that this strategy delegates voting power to.
     address public delegatee;
+
+    /// @notice Emitted when the admin withdraws mistakenly withdraws token ids.
+    event Sweep(uint256[] tokenIds, address receiver);
+
+    /// @notice Thrown when the admin tries to withdraw master token id.
+    error CannotTransferMasterToken();
 
     /// @dev Ensures only the vault can call this function
     modifier onlyVault() {
@@ -116,8 +129,8 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
         }
     }
 
-    /// @notice Claims and swaps token. In the end, deposits into vault the kat token
-    ///         that it was either claimed or swapped into.
+    /// @notice Claims and swaps token. If claimed amount for `token` is > 0,
+    ///         it donates(i.e increases totalAssets) without minting shares.
     /// @param _tokens Which tokens to claim.
     /// @param _amounts How much to claim for each token.
     /// @param _proofs The merkle proof that this contract holds `_amounts` on merkle distributor.
@@ -131,6 +144,7 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
     )
         public
         virtual
+        auth(AUTOCOMPOUND_STRATEGY_CLAIM_COMPOUND_ROLE)
         returns (uint256)
     {
         // which tokens to claim for with their proofs and amounts.
@@ -143,8 +157,6 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
         // This increases the value of all existing shares proportionally.
         if (claimedAmount > 0) {
             _deposit(claimedAmount);
-            // IERC20(token).approve(address(vault), claimedAmount);
-            // vault.donate(claimedAmount);
         }
 
         return claimedAmount;
@@ -153,8 +165,33 @@ contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, D
     /// @notice Votes on gauge voter with `_votes`.
     /// @dev The caller must invoke `delegate` with this strategy’s address, effectively delegating to itself.
     /// @param _votes The gauges and their weights to vote for.
-    function vote(GaugeVoter.GaugeVote[] calldata _votes) external virtual auth(AUTOCOMPOUND_STRATEGY_ADMIN_ROLE) {
+    function vote(GaugeVoter.GaugeVote[] calldata _votes) external virtual auth(AUTOCOMPOUND_STRATEGY_VOTE_ROLE) {
         voter.vote(_votes);
+    }
+
+    /// @notice Allows the admin to withdraw specified token IDs, provided none are the master token.
+    /// @dev This allows to withdraw tokens that have been mistakenly transfered to strategy contract.
+    /// @param _tokenIds The token IDs to withdraw. All IDs must currently be held by this strategy.
+    /// @param _receiver The address that will receive the NFTs.
+    function withdrawTokens(
+        uint256[] memory _tokenIds,
+        address _receiver
+    )
+        external
+        virtual
+        auth(AUTOCOMPOUND_STRATEGY_ADMIN_ROLE)
+    {
+        for (uint256 i = 0; i < _tokenIds.length; i++) {
+            uint256 tokenId = _tokenIds[i];
+
+            if (tokenId == masterTokenId) {
+                revert CannotTransferMasterToken();
+            }
+
+            lockNft.safeTransferFrom(address(this), _receiver, tokenId);
+        }
+
+        emit Sweep(_tokenIds, _receiver);
     }
 
     /*//////////////////////////////////////////////////////////////

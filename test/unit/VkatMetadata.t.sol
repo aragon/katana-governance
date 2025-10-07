@@ -226,8 +226,21 @@ contract VKatMetadataTest is Test {
         customPrefs.rewardTokenWeights[0] = 100;
         customPrefs.rewardTokenWeights[1] = 100;
 
-        vm.expectRevert(abi.encodeWithSelector(IVKatMetadata.LengthMismatch.selector));
+        vm.expectRevert(IVKatMetadata.LengthMismatch.selector);
         vm.prank(alice);
+        metadata.setPreferences(customPrefs);
+    }
+
+    function testRevert_SetPreferences_WhenDuplicatedTokens() public {
+        IVKatMetadata.VKatMetaDataV1 memory customPrefs;
+        customPrefs.rewardTokens = new address[](2);
+        customPrefs.rewardTokens[0] = token1;
+        customPrefs.rewardTokens[1] = token1;
+        customPrefs.rewardTokenWeights = new uint16[](2);
+        customPrefs.rewardTokenWeights[0] = 30;
+        customPrefs.rewardTokenWeights[1] = 30;
+
+        vm.expectRevert(IVKatMetadata.DuplicateRewardToken.selector);
         metadata.setPreferences(customPrefs);
     }
 

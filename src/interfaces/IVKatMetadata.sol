@@ -32,6 +32,7 @@ interface IVKatMetadata {
     error TokenNotInWhitelist(address token);
     error LengthMismatch();
     error ZeroAddress();
+    error DuplicateRewardToken();
 
     // ======= Administrative Functions ======
 

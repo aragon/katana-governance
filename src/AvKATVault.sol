@@ -107,7 +107,7 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IV
         }
 
         // mint according shares to sender.
-        uint256 assetAmount = escrow.locked(_tokenId).amount;
+        uint256 assetAmount = _getTokenIdAmount(_tokenId);
         lockNft.safeTransferFrom(msg.sender, address(this), _tokenId);
         _mint(msg.sender, convertToShares(assetAmount));
 
@@ -135,7 +135,7 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IV
         if (address(strategy) == address(0)) {
             if (masterTokenId == 0) return 0;
 
-            return escrow.locked(masterTokenId).amount;
+            return _getTokenIdAmount(masterTokenId);
         }
 
         return strategy.totalAssets();
@@ -189,7 +189,7 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IV
     ///      Shares are minted based on the amount locked for that tokenId in the escrow.
     function depositTokenId(uint256 _tokenId, address _receiver) public virtual whenStrategySet returns (uint256) {
         address sender = _msgSender();
-        uint256 assets = escrow.locked(_tokenId).amount;
+        uint256 assets = _getTokenIdAmount(_tokenId);
 
         require(assets <= maxDeposit(_receiver), "ERC4626: deposit more than max");
         uint256 shares = previewDeposit(assets);
@@ -306,6 +306,13 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IV
 
         // let new strategy what the master token id is
         strategy.receiveMasterToken(masterTokenId);
+    }
+
+    /// @notice Returns the amount of ERC20 tokens locked in the escrow for a given token ID.
+    /// @dev The current implementation fetches this information from `escrow`, but can be overridden if needed.
+    /// @param _tokenId The token ID whose locked token balance is being retrieved.
+    function _getTokenIdAmount(uint256 _tokenId) internal view virtual returns (uint256) {
+        return escrow.locked(_tokenId).amount;
     }
 
     // =========== Upgrade Related Functions ===========

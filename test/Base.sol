@@ -112,6 +112,8 @@ contract Base is ERC721Holder, Test {
         dao.grant(address(escrow), address(this), escrow.ESCROW_ADMIN_ROLE());
         dao.grant(address(voter), address(this), voter.GAUGE_ADMIN_ROLE());
         dao.grant(address(acStrategy), address(this), acStrategy.AUTOCOMPOUND_STRATEGY_ADMIN_ROLE());
+        dao.grant(address(acStrategy), address(this), acStrategy.AUTOCOMPOUND_STRATEGY_VOTE_ROLE());
+        dao.grant(address(acStrategy), address(this), acStrategy.AUTOCOMPOUND_STRATEGY_CLAIM_COMPOUND_ROLE());
         vm.stopPrank();
 
         // allow escrow splitt feature and nft transfers as well.
