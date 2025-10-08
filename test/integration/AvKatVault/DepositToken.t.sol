@@ -176,7 +176,6 @@ contract VaultDepositTokenTest is Base {
         lockNft.ownerOf(tokenId);
     }
 
-    // totalSupply: 1e6, totalShares: 1e6
     function test_DepositTokenAfterDonation() public {
         // Bob donates which increases total assets but not total supply.
         // 1 share's price becomes bigger.
@@ -207,17 +206,6 @@ contract VaultDepositTokenTest is Base {
         // 1 share must give more assets than before.
         assertGt(assetsPerShareAfter, assetsPerShareBefore);
     }
-
-    // 1942379000000000001000000
-    // 1941823638439406330789395232963372475
-
-    // 1st 1000000000000000000 1000000000000000000
-    // 2nd 1000000000000000000 101000000000000000000
-    // 3rd 1495049504950495049 151000000000000000000
-
-    // 1st 100000000000000000000 100000000000000000000
-    // 2nd 100000000000000000000 200000000000000000000
-    // 3rd 125000000000000000000 250000000000000000000
 
     function test_DepositTokenPreviewDeposit() public {
         uint256 depositAmount = _parseToken(50);
