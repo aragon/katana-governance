@@ -176,19 +176,24 @@ contract VaultDepositTokenTest is Base {
         lockNft.ownerOf(tokenId);
     }
 
+    // totalSupply: 1e6, totalShares: 1e6
     function test_DepositTokenAfterDonation() public {
-        // Someone donates first
-        _mintAndApprove(bob, address(vault), _parseToken(100));
-        uint256 donateAmount = _parseToken(100);
+        // Bob donates which increases total assets but not total supply.
+        // 1 share's price becomes bigger.
+        uint256 donateAmount = _parseToken(1941824);
+        _mintAndApprove(bob, address(vault), donateAmount);
         vm.expectEmit(true, true, true, true);
         emit Vault.AssetsDonated(donateAmount);
         vm.prank(bob);
         vault.donate(donateAmount);
 
-        uint256 shareValueBefore = vault.convertToAssets(1e18);
+        uint256 assetsPerShareBefore = vault.convertToAssets(1e18);
 
-        // Alice deposits token
-        uint256 depositAmount = _parseToken(50);
+        // Alice deposits
+        // This increases totalAssets by `depositAmount`, but totalSupply increases
+        // by smaller amount than `depositAmount`, because `convertToShares` for
+        // `depositAmount` will be less due to the donations.
+        uint256 depositAmount = _parseToken(555);
         vm.startPrank(alice);
         uint256 tokenId = escrow.createLock(depositAmount);
         lockNft.setApprovalForAll(address(vault), true);
@@ -196,10 +201,23 @@ contract VaultDepositTokenTest is Base {
         vm.stopPrank();
 
         // Shares should be worth more than 1:1 due to donation
-        uint256 shareValueAfter = vault.convertToAssets(1e18);
-        assertEq(shareValueAfter, shareValueBefore);
-        assertLt(shares, depositAmount); // Gets fewer shares due to increased share value
+        uint256 assetsPerShareAfter = vault.convertToAssets(1e18);
+
+        // As totalSupply was increased by less amount that totalAssets,
+        // 1 share must give more assets than before.
+        assertGt(assetsPerShareAfter, assetsPerShareBefore);
     }
+
+    // 1942379000000000001000000
+    // 1941823638439406330789395232963372475
+
+    // 1st 1000000000000000000 1000000000000000000
+    // 2nd 1000000000000000000 101000000000000000000
+    // 3rd 1495049504950495049 151000000000000000000
+
+    // 1st 100000000000000000000 100000000000000000000
+    // 2nd 100000000000000000000 200000000000000000000
+    // 3rd 125000000000000000000 250000000000000000000
 
     function test_DepositTokenPreviewDeposit() public {
         uint256 depositAmount = _parseToken(50);

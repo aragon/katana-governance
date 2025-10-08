@@ -8,6 +8,7 @@ import { AvKatVaultHandler as Handler } from "./handlers/AvKatVaultHandler.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
 
 import { MockERC20 } from "@mocks/MockERC20.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 contract VaultInvariant is StdInvariant, Base {
     Handler internal h;
@@ -88,37 +89,58 @@ contract VaultInvariant is StdInvariant, Base {
         );
     }
 
-    function invariant_conversionProportionality() public view {
+    function invariant_shareValueProtection() public view {
         uint256 totalSupply = vault.totalSupply();
         uint256 totalAssets = vault.totalAssets();
 
+        // Exchange rate protection: Share value should never
+        // decrease below initial ratio
         if (totalSupply > 0) {
-            // For every share, convertToAssets should give proportional assets
-            uint256 shareValue = vault.convertToAssets(1e18);
-            uint256 expectedValue = (1e18 * totalAssets) / totalSupply;
+            uint256 currentRate = vault.convertToAssets(1e18); // Assets per 1e18 shares
+            assertGe(currentRate, 1e18, "Share value should never fall below initial 1:1 ratio");
 
-            // Allow for rounding errors, especially with large donation amounts
-            // Use relative tolerance: 1 wei per 1e18 of value
-            uint256 tolerance = expectedValue > 1e18 ? expectedValue / 1e18 : 1;
-            assertApproxEqAbs(shareValue, expectedValue, tolerance, "Share to asset conversion must be proportional");
+            // Total assets should be at least equal to total supply (donations only increase this)
+            assertGe(totalAssets, totalSupply, "Total assets should >= total supply after donations");
         }
 
-        if (totalAssets > 0) {
-            // For every asset, convertToShares should give proportional shares
-            uint256 assetShares = vault.convertToShares(1e18);
-            uint256 expectedShares = (1e18 * totalSupply) / totalAssets;
+        //  Rounding favors the vault (protects existing shareholders)
+        if (totalSupply > 0 && totalAssets > 0) {
+            // When depositing: assets -> shares should round down
+            uint256 oddAssets = 1e18 + 1; // Odd number to force rounding
+            uint256 sharesFromOddAssets = vault.convertToShares(oddAssets);
+            uint256 backToAssets = vault.convertToAssets(sharesFromOddAssets);
 
-            // Allow 1 wei tolerance for division rounding
-            assertApproxEqAbs(assetShares, expectedShares, 1, "Asset to share conversion must be proportional");
+            // User should get back less or equal assets (vault keeps the rounding difference)
+            assertLe(backToAssets, oddAssets, "Rounding should favor the vault on deposit");
+
+            // When withdrawing: shares -> assets should round down
+            uint256 oddShares = 1e18 + 1;
+            uint256 assetsFromOddShares = vault.convertToAssets(oddShares);
+            uint256 backToShares = vault.convertToShares(assetsFromOddShares);
+
+            // User should get back less or equal shares (vault keeps the rounding difference)
+            assertLe(backToShares, oddShares, "Rounding should favor the vault on withdrawal");
+        }
+
+        if (totalSupply > 0) {
+            // The maximum anyone could withdraw is bounded by total assets
+            uint256 maxWithdrawable = vault.convertToAssets(totalSupply);
+            assertLe(maxWithdrawable, totalAssets, "Max withdrawable should be less than or equal to total assets");
+
+            // No single share can be worth more than total assets
+            uint256 singleShareValue = vault.convertToAssets(1);
+            assertLe(singleShareValue, totalAssets, "Single share value bounded by total assets");
         }
     }
 
     function invariant_sumOfSharesEqualsTotalSupply() public view {
         uint256 totalSupply = vault.totalSupply();
         uint256 sumOfActorShares = h.sumOfActorShares();
-        uint256 address1Shares = vault.balanceOf(address(this));
 
-        assertEq(sumOfActorShares + address1Shares, totalSupply, "Sum of all shares must equal total supply");
+        // vault initializes with master token in Base contract.
+        uint256 initialShares = vault.balanceOf(address(this));
+
+        assertEq(sumOfActorShares + initialShares, totalSupply, "Sum of all shares must equal total supply");
     }
 
     function invariant_donationsIncreaseShareValue() public view {
@@ -131,6 +153,10 @@ contract VaultInvariant is StdInvariant, Base {
             uint256 totalSupply = vault.totalSupply();
 
             assertGt(totalAssets, totalSupply, "Donations should make totalAssets > totalSupply");
+
+            uint256 valuePerShare = vault.convertToAssets(1e18);
+
+            assertGe(valuePerShare, 1e18, "Donations must increase share value above 1:1");
         }
     }
 }

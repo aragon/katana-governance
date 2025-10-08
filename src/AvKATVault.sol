@@ -45,6 +45,7 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IV
 
     error StrategyNotSet();
     error SameStrategyNotAllowed();
+    error MinMasterTokenInitAmountTooLow();
 
     event StrategySet(address strategy);
     event AssetsDonated(uint256 assets);
@@ -108,6 +109,10 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IV
 
         // mint according shares to sender.
         uint256 assetAmount = _getTokenIdAmount(_tokenId);
+        if (assetAmount < minMasterTokenInitAmount()) {
+            revert MinMasterTokenInitAmountTooLow();
+        }
+
         lockNft.safeTransferFrom(msg.sender, address(this), _tokenId);
         _mint(msg.sender, convertToShares(assetAmount));
 
@@ -273,6 +278,11 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IV
         lockNft.safeTransferFrom(address(this), _receiver, _tokenId);
 
         emit Sweep(_tokenId, _receiver);
+    }
+
+    /// @inheritdoc IVaultNFT
+    function minMasterTokenInitAmount() public view virtual returns (uint256) {
+        return 1e6;
     }
 
     /// @dev Allows an admin to set a new strategy contract.

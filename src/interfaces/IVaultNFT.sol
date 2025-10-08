@@ -25,4 +25,8 @@ interface IVaultNFT {
 
     /// @notice send veNFT mistakenly transferred to vault to `_receiver`.
     function recoverNFT(uint256 _tokenId, address _receiver) external;
+
+    /// @notice Defines the minimum amount needed to initialize the master token.
+    ///         Ensures the vault is not empty at start and protects against inflation attacks.
+    function minMasterTokenInitAmount() external view returns (uint256);
 }

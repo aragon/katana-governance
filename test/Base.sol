@@ -123,16 +123,27 @@ contract Base is ERC721Holder, Test {
         vm.warp(voter.epochVoteStart() + 1);
 
         // set a masterTokenId on vault.
-        escrowToken.approve(address(escrow), 100e18);
-        masterTokenId = escrow.createLock(100e18);
+        escrowToken.approve(address(escrow), vault.minMasterTokenInitAmount());
+        masterTokenId = escrow.createLock(vault.minMasterTokenInitAmount());
         lockNft.approve(address(vault), masterTokenId);
         vault.initializeMasterTokenId(masterTokenId);
-
         // Deploy merkle tree helper
         address mockSwap = address(new MockSwap());
         merkleTreeHelper = new MerkleTreeHelper(address(merklDistributor), address(this), address(swapper), mockSwap);
         swapActionsBuilder = new SwapActionsBuilder(mockSwap);
     }
+
+    // victim deposit: 50e18
+    // attacker donates: 100e18
+
+    // victim gets: 37.5e18
+    // attacker gets 37.5e18
+
+    // 49 999 999 999 999 999 999
+    // 49 999 999 999 999 999 967
+    // 49 999 777 777 283 949 520
+
+    // 99 999 800 000 401
 
     function _deployOSx() internal {
         ProtocolFactoryBuilder builder = new ProtocolFactoryBuilder();

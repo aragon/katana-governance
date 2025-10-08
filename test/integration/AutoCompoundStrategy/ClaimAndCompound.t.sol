@@ -26,6 +26,17 @@ contract AutoCompoundClaimTest is AutoCompoundBase {
         acStrategy.claimAndCompound(tokens, amounts, proofs, actions);
     }
 
+    function testRevert_IfAtLeastOneActionFails() public {
+        (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(address(acStrategy), tokens, amounts);
+
+        Action[] memory actions = new Action[](1);
+        actions[0].to = address(this);
+        actions[0].data = "0x11111111";
+
+        vm.expectRevert();
+        acStrategy.claimAndCompound(tokens, amounts, proofs, actions);
+    }
+
     // tokenA swaps into token and tokenB swaps into token
     function test_ClaimsAndCompoundsAutomaticallyIfClaimedAmountIsNonZero() public {
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(address(acStrategy), tokens, amounts);
@@ -57,6 +68,7 @@ contract AutoCompoundClaimTest is AutoCompoundBase {
         uint256 sharesBefore = vault.balanceOf(address(acStrategy));
         uint256 shares = acStrategy.claimAndCompound(tokens, amounts, proofs, actions);
 
+        // TODO: why sharesBefore not used ?
         assertNotEq(shares, 0);
     }
 }
