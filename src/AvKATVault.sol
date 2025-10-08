@@ -66,7 +66,7 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IV
         string memory _symbol
     )
         external
-        reinitializer(1)
+        initializer
     {
         __DaoAuthorizableUpgradeable_init(IDAO(_dao));
         __ERC20_init(_name, _symbol);
