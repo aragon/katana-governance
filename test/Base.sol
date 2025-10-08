@@ -133,18 +133,6 @@ contract Base is ERC721Holder, Test {
         swapActionsBuilder = new SwapActionsBuilder(mockSwap);
     }
 
-    // victim deposit: 50e18
-    // attacker donates: 100e18
-
-    // victim gets: 37.5e18
-    // attacker gets 37.5e18
-
-    // 49 999 999 999 999 999 999
-    // 49 999 999 999 999 999 967
-    // 49 999 777 777 283 949 520
-
-    // 99 999 800 000 401
-
     function _deployOSx() internal {
         ProtocolFactoryBuilder builder = new ProtocolFactoryBuilder();
         builder.withMultisigPlugin(1, 1, "ipfs://", "ipfs://", "multisig-subdomain");

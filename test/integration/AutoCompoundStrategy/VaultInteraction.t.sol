@@ -93,7 +93,7 @@ contract AutoCompoundVaultInteractionTest is AutoCompoundBase {
         assertEq(AutoCompoundStrategy(newStrategy).totalAssets(), 0);
     }
 
-    function test_TotalAssets_ReturnsCorrectAmount() public {
+    function test_TotalAssets_ReturnsCorrectAmount() public view {
         uint256 expectedAmount = escrow.locked(acStrategy.masterTokenId()).amount;
         assertEq(acStrategy.totalAssets(), expectedAmount);
     }
