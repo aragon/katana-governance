@@ -5,8 +5,8 @@ import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.so
 
 interface IVaultNFT {
     event Sweep(uint256 tokenId, address receiver);
-    event TokenIdWithdrawn(uint256 tokenId, address receiver);
-    event TokenIdDepositted(uint256 tokenId, address sender);
+    event TokenIdWithdrawn(uint256 indexed tokenId, address indexed receiver);
+    event TokenIdDepositted(uint256 indexed tokenId, address indexed sender);
 
     error CannotTransferMasterToken();
     error MasterTokenAlreadySet();
