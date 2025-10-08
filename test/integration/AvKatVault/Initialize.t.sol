@@ -30,7 +30,7 @@ contract VaultInitializeTest is Base {
     }
 
     function test_CanOnlyBeCalledOnce() public {
-        vm.expectRevert("Initializable: contract is already initialized");
+        vm.expectRevert(IVault.MasterTokenAlreadySet.selector);
         vault.initializeMasterTokenId(masterTokenId);
     }
 

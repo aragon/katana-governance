@@ -95,7 +95,7 @@ contract AvKATVault is Initializable, ERC721Holder, ERC4626, UUPSUpgradeable, IV
     /// @dev To set up the master tokenId, an existing tokenId must be
     ///      transferred here and `initialize` called. This allows creation
     ///      to happen later if no lock existed at deployment.
-    function initializeMasterTokenId(uint256 _tokenId) external virtual reinitializer(2) {
+    function initializeMasterTokenId(uint256 _tokenId) external virtual {
         // While most nft escrows will not allow to have tokenId = 0,
         // for safety reasons, it's better to still not allow such master token.
         if (_tokenId == 0) {
