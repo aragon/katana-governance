@@ -64,7 +64,7 @@ contract Factory {
 
         deps.vault = bases.vault.deployUUPSProxy(
             abi.encodeCall(
-                AvKATVault.initialize, (_params.dao, _params.escrow, address(0), "Autocompounding veKAT", "avKAT")
+                AvKATVault.initialize, (_params.dao, _params.escrow, address(0), "Autocompounding vKAT", "avKAT")
             )
         );
 
