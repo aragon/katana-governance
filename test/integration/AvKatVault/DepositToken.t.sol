@@ -9,7 +9,6 @@ import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IVaultNFT as IVault } from "src/interfaces/IVaultNFT.sol";
 
-
 import { deployVault } from "src/utils/Deployers.sol";
 
 contract VaultDepositTokenTest is Base {
