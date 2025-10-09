@@ -24,7 +24,13 @@ import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 import { IStrategyNFT } from "src/interfaces/IStrategyNFT.sol";
 import { IStrategy } from "src/interfaces/IStrategy.sol";
 
-contract AutoCompoundStrategy is Initializable, ERC721Holder, UUPSUpgradeable, DaoAuthorizable, IStrategyNFT {
+contract AragonMerklAutoCompoundStrategy is
+    Initializable,
+    ERC721Holder,
+    UUPSUpgradeable,
+    DaoAuthorizable,
+    IStrategyNFT
+{
     using SafeERC20 for IERC20;
 
     ///@notice The bytes32 identifier for admin role functions.

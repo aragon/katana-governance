@@ -9,15 +9,12 @@ import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.so
 import { DAO } from "@aragon/osx/core/dao/DAO.sol";
 
 import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
-import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
-import { AccessControlManager } from "@merkl/AccessControlManager.sol";
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { VKatMetadata } from "src/VKatMetadata.sol";
 import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
-import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
-
-import { MockERC20 } from "@mocks/MockERC20.sol";
+import { AragonMerklAutoCompoundStrategy as AutoCompoundStrategy } from
+    "src/strategies/AragonMerklAutoCompoundStrategy.sol";
 
 import { deploySwapper } from "src/utils/Deployers.sol";
 
@@ -64,7 +61,7 @@ contract Factory {
 
         deps.vault = bases.vault.deployUUPSProxy(
             abi.encodeCall(
-                AvKATVault.initialize, (_params.dao, _params.escrow, address(0), "Autocompounding veKAT", "avKAT")
+                AvKATVault.initialize, (_params.dao, _params.escrow, address(0), "Autocompounding vKAT", "avKAT")
             )
         );
 

@@ -26,7 +26,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
     Escrow public immutable escrow;
 
     /// @notice The ERC20 token address escrow uses
-    IERC20 public immutable token;
+    IERC20 public immutable escrowToken;
 
     constructor(address _rewardDistributor, address _escrow, address _executor) {
         if (_executor == address(0)) {
@@ -36,7 +36,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
         rewardDistributor = IRewardsDistributor(_rewardDistributor);
         executor = _executor;
         escrow = Escrow(_escrow);
-        token = IERC20(escrow.token());
+        escrowToken = IERC20(escrow.token());
     }
 
     /// @inheritdoc ISwapper
@@ -59,7 +59,9 @@ contract Swapper is ISwapper, ReentrancyGuard {
             users[i] = msg.sender;
         }
 
-        uint256 beforeAmount = token.balanceOf(address(this));
+        // save before amount of the escrow token as if we have any
+        // we may need to compound it
+        uint256 beforeAmount = escrowToken.balanceOf(address(this));
 
         // If `_tokens`, `_amounts` and `_proofs` have incorrect size, below reverts.
         // The `user` must have set this contract as a recipient
@@ -75,37 +77,41 @@ contract Swapper is ISwapper, ReentrancyGuard {
             revert ActionsFailed();
         }
 
-        uint256 afterAmount = token.balanceOf(address(this));
-
+        // if the tokens are not KAT they will be transferred as part of the actions passed to the executor
+        // hence we only check the balance difference of the escrow token and see if we need to compound
+        uint256 afterAmount = escrowToken.balanceOf(address(this));
         tokenAmountGained = afterAmount - beforeAmount;
         Locked memory lock;
-
-        // If tokenAmountGained > 0, then kat token balance was increased on this contract.
-        // If pct > 0, create a lock with percentage and send rest to sender.
-        // If pct = 0, send whole amount to sender.
         if (tokenAmountGained > 0) {
-            uint256 remaining = tokenAmountGained;
-            if (_pct > 0) {
-                lock.amount = (tokenAmountGained * _pct) / 100;
-                remaining = tokenAmountGained - lock.amount;
-
-                // 1. approve should not revert even for non-compliant ERC20s as
-                // it only approves the exact amount that will be transfered
-                // from this contract, automatically setting allowance back to 0.
-                // we trust that escrow's createLockFor will transfer the whole lock.amount.
-                // 2. It's better to allow fail rather than silently succeed if `lock.amount`
-                // is less than minDeposit of escrow, so no need to add extra check and revert.
-                token.approve(address(escrow), lock.amount);
-                lock.tokenId = escrow.createLockFor(lock.amount, msg.sender);
-            }
-
-            if (remaining > 0) {
-                token.safeTransfer(msg.sender, remaining);
-            }
+            lock = _compoundEscrowToken(_pct, tokenAmountGained);
         }
 
         emit ClaimAndSwapped(msg.sender, _claim.tokens, _claim.amounts, _pct, lock);
 
         return (tokenAmountGained, lock.tokenId);
+    }
+
+    function _compoundEscrowToken(uint256 _pct, uint256 _tokenAmountGained) internal returns (Locked memory lock) {
+        // If tokenAmountGained > 0, then kat token balance was increased on this contract.
+        // If pct > 0, create a lock with percentage and send rest to sender.
+        // If pct = 0, send whole amount to sender.
+        uint256 remaining = _tokenAmountGained;
+        if (_pct > 0) {
+            lock.amount = (_tokenAmountGained * _pct) / 100;
+            remaining = _tokenAmountGained - lock.amount;
+
+            // 1. approve should not revert even for non-compliant ERC20s as
+            // it only approves the exact amount that will be transfered
+            // from this contract, automatically setting allowance back to 0.
+            // we trust that escrow's createLockFor will transfer the whole lock.amount.
+            // 2. It's better to allow fail rather than silently succeed if `lock.amount`
+            // is less than minDeposit of escrow, so no need to add extra check and revert.
+            escrowToken.approve(address(escrow), lock.amount);
+            lock.tokenId = escrow.createLockFor(lock.amount, msg.sender);
+        }
+
+        if (remaining > 0) {
+            escrowToken.safeTransfer(msg.sender, remaining);
+        }
     }
 }

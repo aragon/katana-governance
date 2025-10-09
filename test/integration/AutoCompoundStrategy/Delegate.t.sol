@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 import { AutoCompoundBase } from "./AutoCompoundBase.t.sol";
 import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
-import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
 
 contract AutoCompoundDelegateTest is AutoCompoundBase {
     function testRevert_NoPermission() public {

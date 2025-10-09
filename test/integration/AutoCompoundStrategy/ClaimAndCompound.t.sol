@@ -65,10 +65,12 @@ contract AutoCompoundClaimTest is AutoCompoundBase {
         Action[] memory actions =
             swapActionsBuilder.buildSwapActions(tokens, amounts, address(escrowToken), address(swapper));
 
-        uint256 sharesBefore = vault.balanceOf(address(acStrategy));
+        uint256 totalSharesBefore = vault.totalSupply();
+        uint256 totalAssetsBefore = vault.totalAssets();
         uint256 shares = acStrategy.claimAndCompound(tokens, amounts, proofs, actions);
 
-        // TODO: why sharesBefore not used ?
         assertNotEq(shares, 0);
+        assertEq(vault.totalSupply(), totalSharesBefore);
+        assertGt(vault.totalAssets(), totalAssetsBefore);
     }
 }

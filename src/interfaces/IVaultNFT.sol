@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-
 interface IVaultNFT {
     event Sweep(uint256 tokenId, address receiver);
     event TokenIdWithdrawn(uint256 indexed tokenId, address indexed receiver);

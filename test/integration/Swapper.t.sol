@@ -4,8 +4,8 @@ pragma solidity ^0.8.17;
 import { Base } from "../Base.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import { Errors } from "@merkl/utils/Errors.sol";
-import { MockSwap } from "../mocks/MockSwap.sol";
 import { ISwapper } from "src/interfaces/ISwapper.sol";
+import { MockERC20 } from "@mocks/MockERC20.sol";
 
 contract SwapperTest is Base {
     address[] internal tokens;
@@ -130,6 +130,8 @@ contract SwapperTest is Base {
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(alice, tokens, amounts);
         Action[] memory actions = swapActionsBuilder.buildSwapActions(tokens, amounts, tokenC, alice);
 
+        uint256 aliceBalanceBeforeOnTokenC = MockERC20(tokenC).balanceOf(alice);
+
         assertEq(escrowToken.balanceOf(alice), 0);
         vm.prank(alice, alice);
         vm.expectEmit();
@@ -138,5 +140,6 @@ contract SwapperTest is Base {
 
         assertEq(escrowToken.balanceOf(alice), 0);
         assertEq(diff, 0);
+        assertGt(MockERC20(tokenC).balanceOf(alice), aliceBalanceBeforeOnTokenC);
     }
 }

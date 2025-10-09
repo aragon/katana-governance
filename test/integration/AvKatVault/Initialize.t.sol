@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 import { Base } from "../../Base.sol";
 
-import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
 import { deployVault } from "src/utils/Deployers.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IVaultNFT as IVault } from "src/interfaces/IVaultNFT.sol";

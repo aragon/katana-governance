@@ -9,8 +9,6 @@ import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IVaultNFT as IVault } from "src/interfaces/IVaultNFT.sol";
 
-import { IVotingEscrowCoreErrors } from "@escrow/IVotingEscrowIncreasing_v1_2_0.sol";
-
 import { deployVault } from "src/utils/Deployers.sol";
 
 contract VaultDepositTokenTest is Base {
@@ -196,7 +194,7 @@ contract VaultDepositTokenTest is Base {
         vm.startPrank(alice);
         uint256 tokenId = escrow.createLock(depositAmount);
         lockNft.setApprovalForAll(address(vault), true);
-        uint256 shares = vault.depositTokenId(tokenId, alice);
+        vault.depositTokenId(tokenId, alice);
         vm.stopPrank();
 
         // Shares should be worth more than 1:1 due to donation
