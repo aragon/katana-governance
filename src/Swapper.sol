@@ -77,11 +77,13 @@ contract Swapper is ISwapper, ReentrancyGuard {
             revert ActionsFailed();
         }
 
+	// if the tokens are not KAT they will be transferred as part of the actions passed to the executor
+	// hence we only check the balance difference of the escrow token and see if we need to compound
         uint256 afterAmount = escrowToken.balanceOf(address(this));
         tokenAmountGained = afterAmount - beforeAmount;
         Locked memory lock;
         if (tokenAmountGained > 0) {
-            lock = _compoundEscrowToken();
+            lock = _compoundEscrowToken(_pct, tokenAmountGained);
         }
 
         emit ClaimAndSwapped(msg.sender, _claim.tokens, _claim.amounts, _pct, lock);
@@ -90,7 +92,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
     }
 
     function _compoundEscrowToken(
-	  uint256 _pct
+	  uint256 _pct,
 	  uint256 _tokenAmountGained
     ) internal returns (Locked memory lock) {
         // If tokenAmountGained > 0, then kat token balance was increased on this contract.

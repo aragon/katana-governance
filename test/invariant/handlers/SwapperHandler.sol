@@ -37,7 +37,7 @@ contract SwapperHandler is BaseHandler {
 
     constructor(Swapper _swapper, MerkleTreeHelper _merkleTreeHelper, SwapActionsBuilder _swapActionsBuilder) {
         swapper = _swapper;
-        token = address(_swapper.token());
+        token = address(_swapper.escrowToken());
 
         merkleTreeHelper = _merkleTreeHelper;
         swapActionsBuilder = _swapActionsBuilder;
