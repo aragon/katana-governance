@@ -9,10 +9,12 @@ contract MockSwap {
 
     // Swaps tokenA into tokenB and automatically transfers new tokenB amounts to `recipient`.
     function swapToRecipient(address tokenA, address tokenB, uint256 amount, address recipient) public {
-        IERC20(tokenA).transferFrom(msg.sender, address(this), amount);
+        bool successA = IERC20(tokenA).transferFrom(msg.sender, address(this), amount);
+        require(successA, "Transfer failed");
 
         MockERC20(tokenB).mint(address(this), amount * 2);
-        IERC20(tokenB).transfer(recipient, amount * 2);
+        bool successB = IERC20(tokenB).transfer(recipient, amount * 2);
+        require(successB, "Transfer failed");
     }
 
     function swap(address tokenA, address tokenB, uint256 amount) public {

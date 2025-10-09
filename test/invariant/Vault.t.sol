@@ -5,10 +5,7 @@ import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { Base } from "../Base.sol";
 import { AvKatVaultHandler as Handler } from "./handlers/AvKatVaultHandler.sol";
 
-import { AvKATVault } from "src/AvKATVault.sol";
-
 import { MockERC20 } from "@mocks/MockERC20.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 contract VaultInvariant is StdInvariant, Base {
     Handler internal h;

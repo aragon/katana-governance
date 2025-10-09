@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity >=0.8.0 <0.9.0;
 
-import "erc4626-tests/ERC4626.test.sol";
+import { ERC4626Test } from "erc4626-tests/ERC4626.test.sol";
+import { Vm } from "forge-std/Vm.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { Base } from "../Base.sol";
-
-import { MockERC20 } from "@mocks/MockERC20.sol";
 
 /// Uses additional tests from https://github.com/a16z/erc4626-tests to verify ERC-4626 compliance.
 /// Note: `redeem` and `withdraw` are overridden since, in AvKatVault, they return

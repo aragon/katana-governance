@@ -4,7 +4,8 @@ pragma solidity ^0.8.17;
 import { AutoCompoundBase } from "./AutoCompoundBase.t.sol";
 import { IStrategy } from "src/interfaces/IStrategy.sol";
 import { IStrategyNFT } from "src/interfaces/IStrategyNFT.sol";
-import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
+import { AragonMerklAutoCompoundStrategy as AutoCompoundStrategy } from
+    "src/strategies/AragonMerklAutoCompoundStrategy.sol";
 import { deployAutoCompoundStrategy } from "src/utils/Deployers.sol";
 import { MockERC20 } from "@mocks/MockERC20.sol";
 
