@@ -2,7 +2,8 @@
 pragma solidity ^0.8.17;
 
 import { AutoCompoundBase } from "./AutoCompoundBase.t.sol";
-import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
+import { AragonMerklAutoCompoundStrategy as AutoCompoundStrategy } from
+    "src/strategies/AragonMerklAutoCompoundStrategy.sol";
 import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
 
 contract AutoCompoundWithdrawTokensTest is AutoCompoundBase {

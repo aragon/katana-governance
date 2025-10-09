@@ -10,7 +10,6 @@ import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IVotingEscrowCoreErrors } from "@escrow/IVotingEscrowIncreasing_v1_2_0.sol";
 
 import { deployVault } from "src/utils/Deployers.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 contract VaultDepositTest is Base {
     using ProxyLib for address;

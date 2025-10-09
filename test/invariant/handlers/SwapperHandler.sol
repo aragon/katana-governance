@@ -1,7 +1,7 @@
 pragma solidity ^0.8.17;
 
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import { Distributor as MerklDistributor, MerkleTree as MerkleTreeStruct } from "@merkl/Distributor.sol";
+import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
 
 import { Swapper } from "src/Swapper.sol";
 import { ISwapper } from "src/interfaces/ISwapper.sol";
@@ -10,7 +10,6 @@ import { MerkleTreeHelper } from "../../utils/merkle/MerkleTreeHelper.sol";
 import { SwapActionsBuilder } from "../../utils/SwapActionsBuilder.sol";
 
 import { MockERC20 } from "@mocks/MockERC20.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 import { BaseHandler } from "./BaseHandler.sol";
 
@@ -66,8 +65,8 @@ contract SwapperHandler is BaseHandler {
         // To ensure more randomness, use `_seed` to
         // grab different  tokens to claim each time.
         address[] memory inTokens = selectRandomTokens(rewardTokens, _seed, _count);
-        address[] memory outTokens = selectRandomTokens(outTokens, _seed, _count);
-        address[] memory recipients = getRecipients(outTokens, actor);
+        address[] memory selectedOutTokens = selectRandomTokens(outTokens, _seed, _count);
+        address[] memory recipients = getRecipients(selectedOutTokens, actor);
 
         // MerklDistributor uses the logic that if one receives more reward(i.e 2nd time),
         // the amount in a tree must also include previous amount(prevAmount + newAmount).
@@ -79,7 +78,7 @@ contract SwapperHandler is BaseHandler {
         }
 
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(actor, inTokens, claimAmounts);
-        Action[] memory actions = swapActionsBuilder.buildSwapActions(inTokens, amounts, outTokens, recipients);
+        Action[] memory actions = swapActionsBuilder.buildSwapActions(inTokens, amounts, selectedOutTokens, recipients);
 
         ISwapper.Claim memory input = ISwapper.Claim({ tokens: inTokens, amounts: claimAmounts, proofs: proofs });
         vm.prank(actor, actor);

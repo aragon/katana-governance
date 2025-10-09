@@ -68,7 +68,8 @@ contract AutoCompoundClaimTest is AutoCompoundBase {
         uint256 sharesBefore = vault.balanceOf(address(acStrategy));
         uint256 shares = acStrategy.claimAndCompound(tokens, amounts, proofs, actions);
 
-        // TODO: why sharesBefore not used ?
+        // Verify shares were minted
         assertNotEq(shares, 0);
+        assertGt(vault.balanceOf(address(acStrategy)), sharesBefore);
     }
 }

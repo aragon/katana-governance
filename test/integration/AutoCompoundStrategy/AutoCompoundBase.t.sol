@@ -5,15 +5,6 @@ import { Base } from "../../Base.sol";
 import { AddressGaugeVoter as GaugeVoter } from "@voting/AddressGaugeVoter.sol";
 import { IAddressGaugeVote as IGaugeVoter } from "@voting/IAddressGaugeVoter.sol";
 
-import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
-
-import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
-import { IStrategy } from "src/interfaces/IStrategy.sol";
-import { IStrategyNFT } from "src/interfaces/IStrategyNFT.sol";
-
-import { deployAutoCompoundStrategy } from "src/utils/Deployers.sol";
-
 contract AutoCompoundBase is Base {
     address[] internal tokens;
     uint256[] internal amounts;

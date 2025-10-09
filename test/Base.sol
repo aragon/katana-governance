@@ -1,13 +1,12 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 import { DAO } from "@aragon/osx/core/dao/DAO.sol";
-import { Multisig, MultisigSetup } from "@aragon/multisig/src/MultisigSetup.sol";
+import { Multisig } from "@aragon/multisig/src/MultisigSetup.sol";
 import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
-import { ProxyLib } from "@libs/ProxyLib.sol";
 import { PluginRepoFactory } from "@aragon/osx/framework/plugin/repo/PluginRepoFactory.sol";
 import { PluginSetupProcessor } from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
 import { PluginRepo } from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
@@ -22,7 +21,6 @@ import { VotingEscrowV1_2_0 as VotingEscrow } from "@escrow/VotingEscrowIncreasi
 import { ClockV1_2_0 as Clock } from "@clock/Clock_v1_2_0.sol";
 import { LockV1_2_0 as Lock } from "@lock/Lock_v1_2_0.sol";
 import { EscrowIVotesAdapter } from "@delegation/EscrowIVotesAdapter.sol";
-import { CurveConstantLib } from "@libs/CurveConstantLib.sol";
 import {
     GaugesDaoFactoryV1_4_0 as VeGovernanceFactory,
     Deployment as VeDeployment,
@@ -41,8 +39,8 @@ import {
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { VKatMetadata } from "src/VKatMetadata.sol";
-import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
-import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
+import { AragonMerklAutoCompoundStrategy as AutoCompoundStrategy } from
+    "src/strategies/AragonMerklAutoCompoundStrategy.sol";
 import { deployMerklDistributor } from "src/utils/Deployers.sol";
 import { Swapper } from "src/Swapper.sol";
 

@@ -4,7 +4,6 @@ pragma solidity ^0.8.17;
 import { CommonBase } from "forge-std/Base.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/Executor.sol";
 
-import { MockERC20 } from "@mocks/MockERC20.sol";
 import { MockSwap } from "../mocks/MockSwap.sol";
 
 contract SwapActionsBuilder is CommonBase {

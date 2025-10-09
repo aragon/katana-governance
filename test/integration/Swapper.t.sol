@@ -4,7 +4,6 @@ pragma solidity ^0.8.17;
 import { Base } from "../Base.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import { Errors } from "@merkl/utils/Errors.sol";
-import { MockSwap } from "../mocks/MockSwap.sol";
 import { ISwapper } from "src/interfaces/ISwapper.sol";
 
 contract SwapperTest is Base {

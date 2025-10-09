@@ -1,22 +1,8 @@
 pragma solidity ^0.8.17;
 
-import { StdUtils } from "forge-std/StdUtils.sol";
-import { StdCheats } from "forge-std/StdCheats.sol";
-import { CommonBase } from "forge-std/Base.sol";
-
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import { Distributor as MerklDistributor, MerkleTree as MerkleTreeStruct } from "@merkl/Distributor.sol";
-
-import { Swapper } from "src/Swapper.sol";
-import { ISwapper } from "src/interfaces/ISwapper.sol";
-
-import { MerkleTreeHelper } from "../../utils/merkle/MerkleTreeHelper.sol";
-import { SwapActionsBuilder } from "../../utils/SwapActionsBuilder.sol";
-
 import { MockERC20 } from "@mocks/MockERC20.sol";
-import { console2 as console } from "forge-std/console2.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
 
 import { BaseHandler } from "./BaseHandler.sol";

@@ -6,7 +6,6 @@ import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/au
 import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IStrategy } from "src/interfaces/IStrategy.sol";
-import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
 import { deployAutoCompoundStrategy } from "src/utils/Deployers.sol";
 
 contract VaultSetStrategyTest is Base {
