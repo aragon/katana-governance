@@ -155,6 +155,7 @@ contract AvKatVaultHandler is BaseHandler {
         vm.startPrank(address(vault.dao()));
         vault.setStrategy(strategy);
         vault.lockNft().setWhitelisted(address(strategy), true);
+        vault.escrow().setEnableSplit(address(strategy), true);
         vm.stopPrank();
     }
 

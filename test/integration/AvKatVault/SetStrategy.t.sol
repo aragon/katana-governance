@@ -109,6 +109,7 @@ contract VaultSetStrategyTest is Base {
         vault.setStrategy(newStrategy);
 
         lockNft.setWhitelisted(address(newStrategy), true);
+        escrow.setEnableSplit(address(newStrategy), true);
 
         // Expect Withdrawn event from the new strategy (tokenId will be dynamically created)
         vm.expectEmit(true, false, false, true);

@@ -117,11 +117,6 @@ contract Base is ERC721Holder, Test {
         dao.grant(address(acStrategy), address(this), acStrategy.AUTOCOMPOUND_STRATEGY_CLAIM_COMPOUND_ROLE());
         vm.stopPrank();
 
-        // allow escrow splitt feature and nft transfers as well.
-        lockNft.setWhitelisted(address(vault), true);
-        lockNft.setWhitelisted(address(acStrategy), true);
-        lockNft.setWhitelisted(address(defaultStrategy), true);
-        escrow.enableSplit();
         vm.warp(voter.epochVoteStart() + 1);
 
         // set a masterTokenId on vault.

@@ -91,7 +91,7 @@ contract Factory {
             )
         );
 
-        Action[] memory actions = getActions(_params.dao, nftLock, deps);
+        Action[] memory actions = getActions(_params.dao, _params.escrow, nftLock, deps);
         DAO(payable(_params.dao)).execute(bytes32(uint256(uint160(address(this)))), actions, 0);
 
         return deps;
@@ -99,6 +99,7 @@ contract Factory {
 
     function getActions(
         address _dao,
+        address _escrow,
         address _nftLock,
         Deployment memory _deps
     )
@@ -163,16 +164,26 @@ contract Factory {
             condition: PermissionLib.NO_CONDITION
         });
 
-        Action[] memory actions = new Action[](3);
+        Action[] memory actions = new Action[](6);
 
         actions[0].to = _dao;
         actions[0].data = abi.encodeCall(PermissionManager.applyMultiTargetPermissions, permissions);
 
+        // make vault and strategies whitelisted for nft transfers
         actions[1].to = _nftLock;
-        actions[1].data = abi.encodeCall(LockNFT.setWhitelisted, (_deps.defaultStrategy, true));
+        actions[1].data = abi.encodeCall(LockNFT.setWhitelisted, (_deps.vault, true));
 
         actions[2].to = _nftLock;
-        actions[2].data = abi.encodeCall(LockNFT.setWhitelisted, (_deps.autoCompoundStrategy, true));
+        actions[2].data = abi.encodeCall(LockNFT.setWhitelisted, (_deps.defaultStrategy, true));
+
+        actions[3].to = _nftLock;
+        actions[3].data = abi.encodeCall(LockNFT.setWhitelisted, (_deps.autoCompoundStrategy, true));
+
+        actions[4].to = _escrow;
+        actions[4].data = abi.encodeCall(VotingEscrow.setEnableSplit, (_deps.defaultStrategy, true));
+
+        actions[5].to = _escrow;
+        actions[5].data = abi.encodeCall(VotingEscrow.setEnableSplit, (_deps.autoCompoundStrategy, true));
 
         return actions;
     }
