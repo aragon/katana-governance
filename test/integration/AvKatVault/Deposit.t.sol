@@ -21,10 +21,10 @@ contract VaultDepositTest is Base {
         _mintAndApprove(alice, address(escrow), _parseToken(1000));
     }
 
-    function testRevert_IfStrategyNotSet() public {
-        (, address vaultAddr) = deployVault(address(dao), address(escrow), address(0), "Test Vault", "TEST");
+    function testRevert_IfPaused() public {
+        (, address vaultAddr) = deployVault(address(dao), address(escrow), "Test Vault", "TEST");
 
-        vm.expectRevert(Vault.StrategyNotSet.selector);
+        vm.expectRevert("Pausable: paused");
         Vault(vaultAddr).deposit(_parseToken(100), alice);
     }
 

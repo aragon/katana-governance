@@ -124,7 +124,8 @@ contract Base is ERC721Holder, Test {
         escrowToken.approve(address(escrow), vault.minMasterTokenInitAmount());
         masterTokenId = escrow.createLock(vault.minMasterTokenInitAmount());
         lockNft.approve(address(vault), masterTokenId);
-        vault.initializeMasterTokenId(masterTokenId);
+        vault.initializeMasterTokenAndStrategy(masterTokenId, address(acStrategy));
+        vault.unpause();
         // Deploy merkle tree helper
         address mockSwap = address(new MockSwap());
         merkleTreeHelper = new MerkleTreeHelper(address(merklDistributor), address(this), address(swapper), mockSwap);

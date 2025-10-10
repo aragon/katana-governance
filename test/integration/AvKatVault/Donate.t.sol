@@ -24,7 +24,7 @@ contract VaultDonateTest is Base {
 
         Vault newVault = Vault(
             base.deployUUPSProxy(
-                abi.encodeCall(Vault.initialize, (address(dao), address(escrow), address(0), "Test Vault", "TEST"))
+                abi.encodeCall(Vault.initialize, (address(dao), address(escrow), "Test Vault", "TEST"))
             )
         );
 

@@ -60,9 +60,7 @@ contract Factory {
         // ======== Deploys Vkat Related contracts ========
 
         deps.vault = bases.vault.deployUUPSProxy(
-            abi.encodeCall(
-                AvKATVault.initialize, (_params.dao, _params.escrow, address(0), "Autocompounding vKAT", "avKAT")
-            )
+            abi.encodeCall(AvKATVault.initialize, (_params.dao, _params.escrow, "Autocompounding vKAT", "avKAT"))
         );
 
         // deploy swapper
@@ -142,13 +140,13 @@ contract Factory {
             condition: PermissionLib.NO_CONDITION
         });
 
-        Action[] memory actions = new Action[](2);
+        Action[] memory actions = new Action[](1);
 
         actions[0].to = _dao;
         actions[0].data = abi.encodeCall(PermissionManager.applyMultiTargetPermissions, permissions);
 
-        actions[1].to = _deps.vault;
-        actions[1].data = abi.encodeCall(AvKATVault.setStrategy, _deps.autoCompoundStrategy);
+        // actions[1].to = _deps.vault;
+        // actions[1].data = abi.encodeCall(AvKATVault.setStrategy, _deps.autoCompoundStrategy);
 
         return actions;
     }

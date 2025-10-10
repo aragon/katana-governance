@@ -10,8 +10,8 @@ interface IVaultNFT {
     error MasterTokenAlreadySet();
     error TokenIdCannotBeZero();
 
-    /// @notice Allows to set up masterTokenId initially.
-    function initializeMasterTokenId(uint256 _tokenId) external;
+    /// @notice Allows to set up masterTokenId and strategy initially.
+    function initializeMasterTokenAndStrategy(uint256 _tokenId, address _strategy) external;
 
     /// @notice deposit tokenId into the vault.
     /// @dev The assets amount derivation is up to the implementation.
