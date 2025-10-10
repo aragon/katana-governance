@@ -50,7 +50,6 @@ contract MerkleTree is Base {
                 _hash := keccak256(0x0, 0x40)
             }
             for { let i := mload(tree) } gt(i, 1) { i := sub(i, 2) } {
-                // TODO: clean all this up, mainly broken out for early understanding and debugging
                 let left := mload(add(tree, mul(sub(i, 1), 0x20)))
                 let right := mload(add(tree, mul(i, 0x20)))
                 let posToWrite := add(tree, shr(1, mul(sub(i, 1), 0x20)))

@@ -39,6 +39,8 @@ import {
     BaseContracts
 } from "src/Factory.sol";
 
+import { DefaultStrategy } from "src/strategies/DefaultStrategy.sol";
+
 contract Deploy is Script {
     using ProxyLib for address;
     using SafeCast for uint256;
@@ -54,6 +56,7 @@ contract Deploy is Script {
 
         BaseContracts memory bases = BaseContracts({
             vault: address(new AvKATVault()),
+            defaultStrategy: address(new DefaultStrategy()),
             autoCompoundStrategy: address(new AutoCompoundStrategy()),
             vkatMetadata: address(new VKatMetadata())
         });

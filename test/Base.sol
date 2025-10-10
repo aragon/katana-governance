@@ -49,6 +49,7 @@ import { SwapActionsBuilder } from "./utils/SwapActionsBuilder.sol";
 
 import { MockERC20 } from "@mocks/MockERC20.sol";
 import { MockSwap } from "./mocks/MockSwap.sol";
+import { DefaultStrategy } from "src/strategies/DefaultStrategy.sol";
 
 contract Base is ERC721Holder, Test {
     // ve contracts
@@ -65,6 +66,7 @@ contract Base is ERC721Holder, Test {
     AvKATVault public vault;
     Swapper internal swapper;
     AutoCompoundStrategy internal acStrategy;
+    DefaultStrategy internal defaultStrategy;
     MerklDistributor internal merklDistributor;
     uint8 internal decimals;
 
@@ -90,6 +92,7 @@ contract Base is ERC721Holder, Test {
         // Deploy Kat Factory
         BaseContracts memory bases = BaseContracts({
             vault: address(new AvKATVault()),
+            defaultStrategy: address(new DefaultStrategy()),
             autoCompoundStrategy: address(new AutoCompoundStrategy()),
             vkatMetadata: address(new VKatMetadata())
         });
@@ -116,7 +119,8 @@ contract Base is ERC721Holder, Test {
 
         // allow escrow splitt feature and nft transfers as well.
         lockNft.setWhitelisted(address(vault), true);
-        lockNft.setWhitelisted(address(acStrategy), true); // TODO: GIORGI are we sure we need this ?
+        lockNft.setWhitelisted(address(acStrategy), true);
+        lockNft.setWhitelisted(address(defaultStrategy), true);
         escrow.enableSplit();
         vm.warp(voter.epochVoteStart() + 1);
 
@@ -124,7 +128,8 @@ contract Base is ERC721Holder, Test {
         escrowToken.approve(address(escrow), vault.minMasterTokenInitAmount());
         masterTokenId = escrow.createLock(vault.minMasterTokenInitAmount());
         lockNft.approve(address(vault), masterTokenId);
-        vault.initializeMasterTokenId(masterTokenId);
+        vault.initializeMasterTokenAndStrategy(masterTokenId, address(acStrategy));
+        vault.unpause();
         // Deploy merkle tree helper
         address mockSwap = address(new MockSwap());
         merkleTreeHelper = new MerkleTreeHelper(address(merklDistributor), address(this), address(swapper), mockSwap);
@@ -155,6 +160,7 @@ contract Base is ERC721Holder, Test {
         vault = AvKATVault(katDeployment.vault);
         swapper = Swapper(katDeployment.swapper);
         acStrategy = AutoCompoundStrategy(katDeployment.autoCompoundStrategy);
+        defaultStrategy = DefaultStrategy(katDeployment.defaultStrategy);
     }
 
     function _deployVe(address _daoExecutor) internal {

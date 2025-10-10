@@ -15,7 +15,7 @@ import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
 function deployVault(
     address _dao,
     address _escrow,
-    address _strategy,
+    address _defaultStrategy,
     string memory _name,
     string memory _symbol
 )
@@ -24,7 +24,7 @@ function deployVault(
     address vaultBase = address(new AvKATVault());
 
     address vault = ProxyLib.deployUUPSProxy(
-        vaultBase, abi.encodeCall(AvKATVault.initialize, (_dao, _escrow, _strategy, _name, _symbol))
+        vaultBase, abi.encodeCall(AvKATVault.initialize, (_dao, _escrow, _defaultStrategy, _name, _symbol))
     );
 
     return (vaultBase, vault);
