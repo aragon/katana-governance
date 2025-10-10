@@ -139,12 +139,10 @@ contract AvKatVaultHandler is BaseHandler {
         totalDonated += _amount;
     }
 
-    function setStrategy(bool _blax) public {
+    function setStrategy(bool _deployNewStrategy) public {
         address strategy = address(0);
 
-        address currentStrategy = address(vault.strategy());
-
-        if (_blax || currentStrategy == address(0)) {
+        if (_deployNewStrategy) {
             (, strategy) = deployAutoCompoundStrategy(
                 address(vault.dao()),
                 address(vault.escrow()),

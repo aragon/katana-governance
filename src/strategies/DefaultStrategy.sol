@@ -30,21 +30,21 @@ contract DefaultStrategy is Initializable, UUPSUpgradeable, DaoAuthorizable, NFT
     using SafeERC20 for IERC20;
 
     ///@notice The bytes32 identifier for admin role functions.
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant DEFAULT_STRATEGY_ADMIN_ROLE = keccak256("DEFAULT_STRATEGY_ADMIN_ROLE");
 
-    function initialize(address _dao, address _escrow, address _allowed) external reinitializer(1) {
+    function initialize(address _dao, address _escrow, address _owner) external reinitializer(1) {
         __DaoAuthorizableUpgradeable_init(IDAO(_dao));
-        __NFTBaseStrategy_init(_escrow, VotingEscrow(_escrow).token(), VotingEscrow(_escrow).lockNFT(), _allowed);
+        __NFTBaseStrategy_init(_escrow, VotingEscrow(_escrow).token(), VotingEscrow(_escrow).lockNFT(), _owner);
     }
 
-    function initializeAllowed(address _vault) external reinitializer(2) {
-        allowed = _vault;
+    function initializeOwner(address _owner) external reinitializer(2) {
+        _transferOwnership(_owner);
     }
 
     /*//////////////////////////////////////////////////////////////
                         Upgrade
     //////////////////////////////////////////////////////////////*/
-    function _authorizeUpgrade(address) internal virtual override auth(ADMIN_ROLE) { }
+    function _authorizeUpgrade(address) internal virtual override auth(DEFAULT_STRATEGY_ADMIN_ROLE) { }
 
     function implementation() external view returns (address) {
         return _getImplementation();

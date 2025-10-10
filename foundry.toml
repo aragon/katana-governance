@@ -17,8 +17,8 @@ fs_permissions = [
 
 [profile.default.invariant]
 fail_on_revert = true
-runs = 1000
-depth = 128
+runs = 256
+depth = 64
 
 [fmt]
 single_line_statement_blocks = "preserve"

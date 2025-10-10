@@ -2,9 +2,6 @@
 pragma solidity ^0.8.17;
 
 interface IStrategy {
-    // TODO:GIORGI
-    error NotAllowedTODO();
-
     /// @notice Handles deposit by creating lock and merging to master token
     /// @param _assets Amount of assets to deposit
     function deposit(uint256 _assets) external;

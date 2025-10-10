@@ -7,6 +7,8 @@ import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { ERC721HolderUpgradeable as ERC721Holder } from
     "@openzeppelin/contracts-upgradeable/token/ERC721/utils/ERC721HolderUpgradeable.sol";
+import { OwnableUpgradeable as Ownable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
 import { SafeERC20Upgradeable as SafeERC20 } from
     "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 
@@ -25,10 +27,10 @@ import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 import { IStrategyNFT } from "src/interfaces/IStrategyNFT.sol";
 import { IStrategy } from "src/interfaces/IStrategy.sol";
 
-abstract contract NFTBaseStrategy is Initializable, ERC721Holder, IStrategyNFT {
+abstract contract NFTBaseStrategy is Initializable, ERC721Holder, Ownable, IStrategyNFT {
     using SafeERC20 for IERC20;
 
-    /// @notice
+    /// @notice The ERC20 asset token.
     address internal asset;
 
     /// @notice The single tokenId that this strategy holds and manages
@@ -37,16 +39,8 @@ abstract contract NFTBaseStrategy is Initializable, ERC721Holder, IStrategyNFT {
     /// @notice The escrow contract
     VotingEscrow public escrow;
 
-    /// @notice The nft contract
+    /// @notice The ERC721 contract.
     ERC721 public nft;
-
-    /// @notice
-    address public allowed;
-
-    modifier allowedAddr() {
-        if (allowed != msg.sender) revert NotAllowedTODO();
-        _;
-    }
 
     modifier masterTokenSet() {
         if (masterTokenId == 0) revert MasterTokenNotSet();
@@ -57,17 +51,17 @@ abstract contract NFTBaseStrategy is Initializable, ERC721Holder, IStrategyNFT {
         address _escrow,
         address _asset,
         address _nft,
-        address _allowed
+        address _owner
     )
         internal
         onlyInitializing
     {
         __ERC721Holder_init();
-
         asset = _asset;
         escrow = VotingEscrow(_escrow);
         nft = ERC721(_nft);
-        allowed = _allowed;
+
+        _transferOwnership(_owner);
     }
 
     /// @inheritdoc IStrategy
@@ -78,13 +72,13 @@ abstract contract NFTBaseStrategy is Initializable, ERC721Holder, IStrategyNFT {
     }
 
     /// @inheritdoc IStrategyNFT
-    function depositTokenId(uint256 _tokenId) public virtual allowedAddr masterTokenSet {
+    function depositTokenId(uint256 _tokenId) public virtual onlyOwner masterTokenSet {
         // Merge the received token to master token
         escrow.merge(_tokenId, masterTokenId);
     }
 
     /// @inheritdoc IStrategy
-    function withdraw(address _receiver, uint256 _assets) public virtual allowedAddr masterTokenSet returns (uint256) {
+    function withdraw(address _receiver, uint256 _assets) public virtual onlyOwner masterTokenSet returns (uint256) {
         // Split the master token
         uint256 newTokenId = escrow.split(masterTokenId, _assets);
 
@@ -95,12 +89,17 @@ abstract contract NFTBaseStrategy is Initializable, ERC721Holder, IStrategyNFT {
     }
 
     /// @inheritdoc IStrategyNFT
-    function receiveMasterToken(uint256 _masterTokenId) public virtual allowedAddr {
+    function receiveMasterToken(uint256 _masterTokenId) public virtual onlyOwner {
+        // If master token was already set, don't allow to change it.
+        if (masterTokenId != 0 && masterTokenId != _masterTokenId) {
+            revert MasterTokenAlreadySet();
+        }
+
         masterTokenId = _masterTokenId;
     }
 
     /// @inheritdoc IStrategy
-    function retireStrategy() public virtual allowedAddr {
+    function retireStrategy() public virtual onlyOwner {
         nft.safeTransferFrom(address(this), msg.sender, masterTokenId);
     }
 
@@ -125,4 +124,7 @@ abstract contract NFTBaseStrategy is Initializable, ERC721Holder, IStrategyNFT {
 
         escrow.merge(tokenId, masterTokenId);
     }
+
+    /// @dev Reserved storage space to allow for layout changes in the future.
+    uint256[46] private __gap;
 }

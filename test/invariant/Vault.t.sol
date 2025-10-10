@@ -29,15 +29,14 @@ contract VaultInvariant is StdInvariant, Base {
         targetSelector(a);
     }
 
-    // TODO: GIORGI
     function invariant_strategyOwnsMasterTokenOnly() public view {
-        // address owner = vault.lockNft().ownerOf(masterTokenId);
+        address owner = vault.lockNft().ownerOf(masterTokenId);
 
-        // assertEq(owner, address(acStrategy), "Strategy must always own master token");
+        assertEq(owner, address(vault.strategy()), "Strategy must always own master token");
 
-        // // Strategy should only hold the master token, no other NFTs
-        // uint256 strategyNftBalance = vault.lockNft().balanceOf(address(acStrategy));
-        // assertEq(strategyNftBalance, 1, "Strategy should only hold master token NFT");
+        // Strategy should only hold the master token, no other NFTs
+        uint256 strategyNftBalance = vault.lockNft().balanceOf(address(vault.strategy()));
+        assertEq(strategyNftBalance, 1, "Strategy should only hold master token NFT");
     }
 
     function invariant_vaultHoldsNoNFTs() public view {

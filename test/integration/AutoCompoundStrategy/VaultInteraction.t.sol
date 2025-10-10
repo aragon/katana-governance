@@ -13,25 +13,25 @@ contract AutoCompoundVaultInteractionTest is AutoCompoundBase {
     // ============= OnlyVault Modifier Tests =============
 
     function testRevert_OnlyVaultCanCall_Withdraw() public {
-        vm.expectRevert(IStrategy.NotAllowedTODO.selector);
+        vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(alice);
         acStrategy.withdraw(alice, 100e18);
     }
 
     function testRevert_OnlyVaultCanCall_DepositTokenId() public {
-        vm.expectRevert(IStrategy.NotAllowedTODO.selector);
+        vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(alice);
         acStrategy.depositTokenId(1);
     }
 
     function testRevert_OnlyVaultCanCall_RetireStrategy() public {
-        vm.expectRevert(IStrategy.NotAllowedTODO.selector);
+        vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(alice);
         acStrategy.retireStrategy();
     }
 
     function testRevert_OnlyVaultCanCall_ReceiveMasterToken() public {
-        vm.expectRevert(IStrategy.NotAllowedTODO.selector);
+        vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(alice);
         acStrategy.receiveMasterToken(123);
     }
@@ -139,5 +139,34 @@ contract AutoCompoundVaultInteractionTest is AutoCompoundBase {
 
         // Verify master token is set
         assertEq(AutoCompoundStrategy(newStrategy).masterTokenId(), newMasterTokenId);
+    }
+
+    function testRevert_ReceiveMasterToken_WhenMasterTokenAlreadySet() public {
+        // The strategy already has a master token set from setUp
+        uint256 existingMasterTokenId = acStrategy.masterTokenId();
+        assertTrue(existingMasterTokenId != 0, "Master token should be set");
+
+        // Try to set a different master token
+        uint256 differentTokenId = existingMasterTokenId + 1;
+
+        vm.expectRevert(IStrategyNFT.MasterTokenAlreadySet.selector);
+        vm.prank(address(vault));
+        acStrategy.receiveMasterToken(differentTokenId);
+
+        // Verify the original master token is still set
+        assertEq(acStrategy.masterTokenId(), existingMasterTokenId);
+    }
+
+    function test_ReceiveMasterToken_AllowsSameTokenId() public {
+        // The strategy already has a master token set from setUp
+        uint256 existingMasterTokenId = acStrategy.masterTokenId();
+        assertTrue(existingMasterTokenId != 0, "Master token should be set");
+
+        // Setting the same master token ID should be allowed (no-op)
+        vm.prank(address(vault));
+        acStrategy.receiveMasterToken(existingMasterTokenId);
+
+        // Verify the master token is unchanged
+        assertEq(acStrategy.masterTokenId(), existingMasterTokenId);
     }
 }

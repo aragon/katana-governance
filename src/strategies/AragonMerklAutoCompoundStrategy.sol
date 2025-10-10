@@ -185,5 +185,5 @@ contract AragonMerklAutoCompoundStrategy is
     }
 
     /// @dev Reserved storage space to allow for layout changes in the future.
-    uint256[41] private __gap;
+    uint256[45] private __gap;
 }

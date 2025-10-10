@@ -41,7 +41,8 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     /// @notice The strategy contract that holds the master token and handles escrow operations.
     IStrategy public strategy;
 
-    /// @notice TODO: GIORGI
+    /// @notice The address of default strategy that will handle deposit/withdrawals
+    ///        in case custom strategy is set to zero.
     IStrategy public defaultStrategy;
 
     /// The single tokenId that this vault will hold and
@@ -52,6 +53,7 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     error MasterTokenNotSet();
     error SameStrategyNotAllowed();
     error MinMasterTokenInitAmountTooLow();
+    error DefaultStrategyCannotBeZero();
 
     event StrategySet(address strategy);
     event AssetsDonated(uint256 assets);
@@ -67,6 +69,8 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
 
     /// @param _dao The dao address.
     /// @param _escrow The escrow contract providing the asset and NFT tokens.
+    /// @param _defaultStrategy The address of default strategy that handles deposit/withdraws
+    ///        In case admin chooses to remove custom strategy.
     /// @param _name The name of the share token minted by this vault.
     /// @param _symbol The symbol of the share token minted by this vault.
     function initialize(
@@ -89,9 +93,12 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
         lockNft = LockNFT(escrow.lockNFT());
 
         if (_defaultStrategy == address(0)) {
-            revert("TODO: GIORGI");
+            revert DefaultStrategyCannotBeZero();
         }
 
+        // Note: `strategy` is not set here since it should only be assigned
+        // once the master token is initialized.
+        // See `initializeMasterTokenAndStrategy` for details.
         defaultStrategy = IStrategy(_defaultStrategy);
 
         // Always start with paused state to ensure that deposits/withdrawals can not occur.
@@ -114,6 +121,9 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     /// @dev To set up the master tokenId, an existing tokenId must be
     ///      transferred here and `initialize` called. This allows creation
     ///      to happen later if no lock existed at deployment.
+    /// @dev NOTE: `deposit`, `withdraw`, and `donate` will revert until
+    ///     `masterTokenId` is set, as `strategy` remains address(0) and
+    ///      any calls to it will fail.
     function initializeMasterTokenAndStrategy(
         uint256 _tokenId,
         address _strategy
@@ -131,6 +141,8 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
             revert MinMasterTokenInitAmountTooLow();
         }
 
+        uint256 shares = convertToShares(assetAmount);
+
         // Transfer `_tokenId` from sender and set it to masterTokenId
         lockNft.safeTransferFrom(msg.sender, address(this), _tokenId);
         masterTokenId = _tokenId;
@@ -140,7 +152,7 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
         // to defaultStrategy or sender's passed strategy.
         _setStrategy(_strategy);
 
-        _mint(msg.sender, convertToShares(assetAmount));
+        _mint(msg.sender, shares);
     }
 
     /// @notice Allows to change a strategy contract.
@@ -280,14 +292,13 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
         tokenId = strategy.withdraw(_receiver, _assets);
 
         emit TokenIdWithdrawn(tokenId, _receiver);
-
         emit Withdraw(_caller, _receiver, _owner, _assets, _shares);
     }
 
     /// @notice Allows to donate the assets only without minting shares.
     ///         This increases assets causing each share to cost more.
     /// @param _assets How much to donate.
-    function donate(uint256 _assets) public virtual {
+    function donate(uint256 _assets) public virtual whenNotPaused {
         SafeERC20.safeTransferFrom(IERC20(asset()), _msgSender(), address(this), _assets);
 
         // Approve strategy so it can transfer `_assets`.

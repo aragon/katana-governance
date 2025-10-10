@@ -42,7 +42,7 @@ contract VaultSetStrategyTest is Base {
     function test_SetStrategyToZeroAddress() public {
         vault.setStrategy(address(0));
 
-        assertEq(address(vault.strategy()), address(0));
+        assertEq(address(vault.strategy()), address(defaultStrategy));
     }
 
     function testRevert_IfSetSameStrategy() public {

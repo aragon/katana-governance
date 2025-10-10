@@ -183,6 +183,4 @@ contract VaultWithdrawTest is Base {
         // and withdraws those again.
         assertNotEq(temp, 0);
     }
-
-    // TODO: same test as above but use `redeem` instead of withdraw.
 }

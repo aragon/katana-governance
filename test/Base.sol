@@ -119,8 +119,8 @@ contract Base is ERC721Holder, Test {
 
         // allow escrow splitt feature and nft transfers as well.
         lockNft.setWhitelisted(address(vault), true);
-        lockNft.setWhitelisted(address(acStrategy), true); // TODO: GIORGI are we sure we need this ?
-        lockNft.setWhitelisted(address(defaultStrategy), true); // TODO: GIORGI are we sure we need this ?
+        lockNft.setWhitelisted(address(acStrategy), true);
+        lockNft.setWhitelisted(address(defaultStrategy), true);
         escrow.enableSplit();
         vm.warp(voter.epochVoteStart() + 1);
 

@@ -151,7 +151,7 @@ contract VaultWithdrawTest is Base {
         vault.withdraw(0, alice, alice);
     }
 
-    function test_1_WithdrawAll() public {
+    function test_WithdrawAll() public {
         uint256 depositAmount = _parseToken(100);
 
         vm.prank(alice);
@@ -325,10 +325,10 @@ contract VaultWithdrawTest is Base {
         uint256 lastIndex = lockNft.totalSupply() - 1;
         uint256 expectedTokenId = lockNft.tokenByIndex(lastIndex) + 2;
 
+        vm.expectEmit();
+        emit IVault.TokenIdWithdrawn(expectedTokenId, alice);
         vm.expectEmit(true, true, true, true);
         emit IERC4626.Withdraw(alice, alice, alice, withdrawAmount, withdrawAmount);
-        vm.expectEmit(true, true, true, true);
-        emit IVault.TokenIdWithdrawn(expectedTokenId, alice);
 
         vm.prank(alice);
         uint256 tokenId = vault.withdrawTokenId(withdrawAmount, alice, alice);
@@ -352,9 +352,9 @@ contract VaultWithdrawTest is Base {
         uint256 expectedTokenId = lockNft.tokenByIndex(lastIndex) + 2;
 
         vm.expectEmit(true, true, true, true);
-        emit IERC4626.Withdraw(alice, receiver, alice, withdrawAmount, withdrawAmount);
-        vm.expectEmit(true, true, true, true);
         emit IVault.TokenIdWithdrawn(expectedTokenId, receiver);
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Withdraw(alice, receiver, alice, withdrawAmount, withdrawAmount);
 
         vm.prank(alice);
         uint256 tokenId = vault.withdrawTokenId(withdrawAmount, receiver, alice);
@@ -512,7 +512,6 @@ contract VaultWithdrawTest is Base {
         vault.recoverNFT(tokenId, address(this));
     }
 
-    // TODO: GIORGI probably no need ?
     function testRevert_IfRecoversMasterTokenId() public {
         vm.expectRevert();
         vault.recoverNFT(masterTokenId, address(this));

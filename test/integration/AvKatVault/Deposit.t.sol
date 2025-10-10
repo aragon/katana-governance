@@ -49,17 +49,7 @@ contract VaultDepositTest is Base {
         vm.stopPrank();
     }
 
-    // TODO: GIORGI think about this ?
-    function test_vaultEmpty() public view {
-        // // Master token starts with minDeposit amount, vault starts empty with OZ virtual assets protection
-        // uint256 amount = escrow.locked(masterTokenId).amount;
-        // assertEq(amount, escrow.minDeposit());
-
-        // assertEq(vault.totalAssets(), amount);
-        // assertEq(vault.totalSupply(), 0); // No shares minted yet, OZ handles first depositor attack
-    }
-
-    function test_1_Deposit() public {
+    function test_Deposit() public {
         uint256 depositAmount = _parseToken(100);
 
         uint256 assetBefore = escrowToken.balanceOf(alice);
