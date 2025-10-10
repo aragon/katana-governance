@@ -9,8 +9,6 @@ import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IVaultNFT as IVault } from "src/interfaces/IVaultNFT.sol";
 
-import { IVotingEscrowCoreErrors } from "@escrow/IVotingEscrowIncreasing_v1_2_0.sol";
-
 import { deployVault } from "src/utils/Deployers.sol";
 
 contract VaultDepositTokenTest is Base {
@@ -25,11 +23,15 @@ contract VaultDepositTokenTest is Base {
         _mintAndApprove(bob, address(escrow), _parseToken(1000));
     }
 
-    function testRevert_IfMasterTokenNotSet() public {
-        (, address vault) = deployVault(address(dao), address(escrow), address(0), "Test Vault", "TEST");
+    function testRevert_IfPaused() public {
+        (, address vault) = deployVault(address(dao), address(escrow), address(defaultStrategy), "Test Vault", "TEST");
 
-        vm.expectRevert(Vault.StrategyNotSet.selector);
+        vm.startPrank(alice);
+        escrowToken.approve(address(escrow), _parseToken(50));
+        uint256 tokenId = escrow.createLock(_parseToken(50));
+        vm.expectRevert("Pausable: paused");
         Vault(vault).deposit(_parseToken(100), alice);
+        vm.stopPrank();
     }
 
     function testRevert_IfNotOwner() public {
@@ -177,28 +179,34 @@ contract VaultDepositTokenTest is Base {
     }
 
     function test_DepositTokenAfterDonation() public {
-        // Someone donates first
-        _mintAndApprove(bob, address(vault), _parseToken(100));
-        uint256 donateAmount = _parseToken(100);
+        // Bob donates which increases total assets but not total supply.
+        // 1 share's price becomes bigger.
+        uint256 donateAmount = _parseToken(1941824);
+        _mintAndApprove(bob, address(vault), donateAmount);
         vm.expectEmit(true, true, true, true);
         emit Vault.AssetsDonated(donateAmount);
         vm.prank(bob);
         vault.donate(donateAmount);
 
-        uint256 shareValueBefore = vault.convertToAssets(1e18);
+        uint256 assetsPerShareBefore = vault.convertToAssets(1e18);
 
-        // Alice deposits token
-        uint256 depositAmount = _parseToken(50);
+        // Alice deposits
+        // This increases totalAssets by `depositAmount`, but totalSupply increases
+        // by smaller amount than `depositAmount`, because `convertToShares` for
+        // `depositAmount` will be less due to the donations.
+        uint256 depositAmount = _parseToken(555);
         vm.startPrank(alice);
         uint256 tokenId = escrow.createLock(depositAmount);
         lockNft.setApprovalForAll(address(vault), true);
-        uint256 shares = vault.depositTokenId(tokenId, alice);
+        vault.depositTokenId(tokenId, alice);
         vm.stopPrank();
 
         // Shares should be worth more than 1:1 due to donation
-        uint256 shareValueAfter = vault.convertToAssets(1e18);
-        assertEq(shareValueAfter, shareValueBefore);
-        assertLt(shares, depositAmount); // Gets fewer shares due to increased share value
+        uint256 assetsPerShareAfter = vault.convertToAssets(1e18);
+
+        // As totalSupply was increased by less amount that totalAssets,
+        // 1 share must give more assets than before.
+        assertGt(assetsPerShareAfter, assetsPerShareBefore);
     }
 
     function test_DepositTokenPreviewDeposit() public {

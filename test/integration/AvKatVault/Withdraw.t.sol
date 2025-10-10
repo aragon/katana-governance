@@ -7,6 +7,7 @@ import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/au
 import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IVaultNFT as IVault } from "src/interfaces/IVaultNFT.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 import { deployVault } from "src/utils/Deployers.sol";
 
@@ -19,10 +20,10 @@ contract VaultWithdrawTest is Base {
         _mintAndApprove(bob, address(vault), _parseToken(1000));
     }
 
-    function testRevert_IfMasterTokenNotSet() public {
-        (, address vault) = deployVault(address(dao), address(escrow), address(0), "Test Vault", "TEST");
+    function testRevert_1_IfPaused() public {
+        (, address vault) = deployVault(address(dao), address(escrow), address(defaultStrategy), "Test Vault", "TEST");
 
-        vm.expectRevert(Vault.StrategyNotSet.selector);
+        vm.expectRevert("Pausable: paused");
         Vault(vault).deposit(_parseToken(100), alice);
     }
 
@@ -36,7 +37,6 @@ contract VaultWithdrawTest is Base {
 
         // before amounts
         uint256 totalAssetsBefore = vault.totalAssets();
-        uint256 assetsBefore = escrowToken.balanceOf(alice);
         uint256 sharesBefore = vault.balanceOf(alice);
 
         // Alice withdraws 50
@@ -325,10 +325,10 @@ contract VaultWithdrawTest is Base {
         uint256 lastIndex = lockNft.totalSupply() - 1;
         uint256 expectedTokenId = lockNft.tokenByIndex(lastIndex) + 2;
 
+        vm.expectEmit();
+        emit IVault.TokenIdWithdrawn(expectedTokenId, alice);
         vm.expectEmit(true, true, true, true);
         emit IERC4626.Withdraw(alice, alice, alice, withdrawAmount, withdrawAmount);
-        vm.expectEmit(true, true, true, true);
-        emit IVault.TokenIdWithdrawn(expectedTokenId, alice);
 
         vm.prank(alice);
         uint256 tokenId = vault.withdrawTokenId(withdrawAmount, alice, alice);
@@ -352,9 +352,9 @@ contract VaultWithdrawTest is Base {
         uint256 expectedTokenId = lockNft.tokenByIndex(lastIndex) + 2;
 
         vm.expectEmit(true, true, true, true);
-        emit IERC4626.Withdraw(alice, receiver, alice, withdrawAmount, withdrawAmount);
-        vm.expectEmit(true, true, true, true);
         emit IVault.TokenIdWithdrawn(expectedTokenId, receiver);
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Withdraw(alice, receiver, alice, withdrawAmount, withdrawAmount);
 
         vm.prank(alice);
         uint256 tokenId = vault.withdrawTokenId(withdrawAmount, receiver, alice);
@@ -512,7 +512,6 @@ contract VaultWithdrawTest is Base {
         vault.recoverNFT(tokenId, address(this));
     }
 
-    // TODO: GIORGI probably no need ?
     function testRevert_IfRecoversMasterTokenId() public {
         vm.expectRevert();
         vault.recoverNFT(masterTokenId, address(this));

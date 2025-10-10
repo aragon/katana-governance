@@ -1,25 +1,13 @@
 pragma solidity ^0.8.17;
 
-import { StdUtils } from "forge-std/StdUtils.sol";
-import { StdCheats } from "forge-std/StdCheats.sol";
-import { CommonBase } from "forge-std/Base.sol";
-
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import { Distributor as MerklDistributor, MerkleTree as MerkleTreeStruct } from "@merkl/Distributor.sol";
-
-import { Swapper } from "src/Swapper.sol";
-import { ISwapper } from "src/interfaces/ISwapper.sol";
-
-import { MerkleTreeHelper } from "../../utils/merkle/MerkleTreeHelper.sol";
-import { SwapActionsBuilder } from "../../utils/SwapActionsBuilder.sol";
-
 import { MockERC20 } from "@mocks/MockERC20.sol";
-import { console2 as console } from "forge-std/console2.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
 
 import { BaseHandler } from "./BaseHandler.sol";
+import { deployAutoCompoundStrategy } from "src/utils/Deployers.sol";
+import { Swapper } from "src/Swapper.sol";
 
 contract AvKatVaultHandler is BaseHandler {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -29,6 +17,8 @@ contract AvKatVaultHandler is BaseHandler {
 
     address public token; // token of escrow.
     AvKATVault internal vault;
+    Swapper internal swapper;
+
     MockERC20 internal assetToken;
 
     // Ghost variables
@@ -37,8 +27,9 @@ contract AvKatVaultHandler is BaseHandler {
     uint256 public totalWithdrawn;
     uint256 public totalDonated;
 
-    constructor(AvKATVault _vault) {
+    constructor(AvKATVault _vault, Swapper _swapper) {
         vault = _vault;
+        swapper = _swapper;
 
         assetToken = MockERC20(address(vault.asset()));
 
@@ -146,6 +137,25 @@ contract AvKatVaultHandler is BaseHandler {
         // Donation increases totalAssets but does NOT mint shares
         // This increases share value for all existing holders
         totalDonated += _amount;
+    }
+
+    function setStrategy(bool _deployNewStrategy) public {
+        address strategy = address(0);
+
+        if (_deployNewStrategy) {
+            (, strategy) = deployAutoCompoundStrategy(
+                address(vault.dao()),
+                address(vault.escrow()),
+                address(swapper),
+                address(vault),
+                address(swapper.rewardDistributor())
+            );
+        }
+
+        vm.startPrank(address(vault.dao()));
+        vault.setStrategy(strategy);
+        vault.lockNft().setWhitelisted(address(strategy), true);
+        vm.stopPrank();
     }
 
     // ======== Helper Functions =========

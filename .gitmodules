@@ -29,3 +29,6 @@
 [submodule "lib/protocol-factory"]
 	path = lib/protocol-factory
 	url = https://github.com/aragon/protocol-factory
+[submodule "lib/erc4626-tests"]
+	path = lib/erc4626-tests
+	url = https://github.com/a16z/erc4626-tests

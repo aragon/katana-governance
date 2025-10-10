@@ -32,6 +32,8 @@ interface IVKatMetadata {
     error TokenNotInWhitelist(address token);
     error LengthMismatch();
     error ZeroAddress();
+    error DuplicateRewardToken();
+    error ReservedAddressCannotBeRemoved();
 
     // ======= Administrative Functions ======
 
@@ -86,10 +88,10 @@ interface IVKatMetadata {
     function isRewardToken(address _token) external view returns (bool);
 
     /**
-     * @notice Returns the address of the vKAT NFT contract
-     * @return The address of the vKAT contract
+     * @notice Returns the address of the kat token
+     * @return The address of the kat token
      */
-    function vKat() external view returns (address);
+    function kat() external view returns (address);
 
     /**
      * @notice Returns the default preferences applied to vKAT NFTs without custom settings

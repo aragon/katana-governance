@@ -1,4 +1,10 @@
 {
+  "lib/erc4626-tests": {
+    "tag": {
+      "name": "v0.1.1",
+      "rev": "232ff9ba8194e406967f52ecc5cb52ed764209e9"
+    }
+  },
   "lib/forge-std": {
     "rev": "0c71116a218268ee8c0157be8efcb13af0f7beaf"
   },

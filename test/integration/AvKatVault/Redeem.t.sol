@@ -18,10 +18,10 @@ contract VaultRedeemTest is Base {
         _mintAndApprove(bob, address(vault), _parseToken(1000));
     }
 
-    function testRevert_IfMasterTokenNotSet() public {
-        (, address vault) = deployVault(address(dao), address(escrow), address(0), "Test Vault", "TEST");
+    function testRevert_IfPaused() public {
+        (, address vault) = deployVault(address(dao), address(escrow), address(defaultStrategy), "Test Vault", "TEST");
 
-        vm.expectRevert(Vault.StrategyNotSet.selector);
+        vm.expectRevert("Pausable: paused");
         Vault(vault).deposit(_parseToken(100), alice);
     }
 
@@ -35,7 +35,6 @@ contract VaultRedeemTest is Base {
 
         // before amounts
         uint256 totalAssetsBefore = vault.totalAssets();
-        uint256 assetsBefore = escrowToken.balanceOf(alice);
         uint256 sharesBefore = vault.balanceOf(alice);
 
         // Alice redeems 50

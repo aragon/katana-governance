@@ -6,7 +6,6 @@ import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/au
 import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IStrategy } from "src/interfaces/IStrategy.sol";
-import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
 import { deployAutoCompoundStrategy } from "src/utils/Deployers.sol";
 
 contract VaultSetStrategyTest is Base {
@@ -43,7 +42,7 @@ contract VaultSetStrategyTest is Base {
     function test_SetStrategyToZeroAddress() public {
         vault.setStrategy(address(0));
 
-        assertEq(address(vault.strategy()), address(0));
+        assertEq(address(vault.strategy()), address(defaultStrategy));
     }
 
     function testRevert_IfSetSameStrategy() public {
@@ -77,5 +76,49 @@ contract VaultSetStrategyTest is Base {
 
         // Verify new strategy has the correct master token ID
         assertEq(IStrategy(newStrategy).totalAssets(), totalAssetsBefore);
+    }
+
+    function test_StrategyChangeWhileUserWithdrawing() public {
+        // Setup: Alice has deposited
+        uint256 depositAmount = _parseToken(100);
+        _mintAndApprove(alice, address(vault), depositAmount);
+        vm.prank(alice);
+        vault.deposit(depositAmount, alice);
+
+        // Bob also deposits
+        _mintAndApprove(bob, address(vault), depositAmount);
+        vm.prank(bob);
+        vault.deposit(depositAmount, bob);
+
+        uint256 totalAssetsBefore = vault.totalAssets();
+        uint256 aliceSharesBefore = vault.balanceOf(alice);
+
+        // Alice initiates withdrawal of half her deposit
+        uint256 withdrawAmount = _parseToken(50);
+
+        // Strategy changes right before Alice's withdraw executes
+        vault.setStrategy(newStrategy);
+
+        lockNft.setWhitelisted(address(newStrategy), true);
+
+        // Alice's withdraw now executes with NEW strategy
+        vm.prank(alice, alice);
+        uint256 sharesRedeemed = vault.withdraw(withdrawAmount, alice, alice);
+
+        // Verify the withdrawal worked correctly even though strategy changed
+        assertEq(vault.balanceOf(alice), aliceSharesBefore - sharesRedeemed, "Alice shares not reduced correctly");
+        assertEq(vault.totalAssets(), totalAssetsBefore - withdrawAmount, "Total assets not reduced correctly");
+
+        // Verify the NEW strategy handled the split (not the old one)
+        assertEq(
+            IStrategy(newStrategy).totalAssets(),
+            totalAssetsBefore - withdrawAmount,
+            "New strategy should have correct assets"
+        );
+
+        // Verify Alice received an NFT from the split
+        uint256[] memory aliceTokens = escrow.ownedTokens(alice);
+        assertEq(aliceTokens.length, 1, "Alice should have received 1 NFT from withdrawal");
+        assertEq(escrow.locked(aliceTokens[0]).amount, withdrawAmount, "NFT should have correct amount");
     }
 }

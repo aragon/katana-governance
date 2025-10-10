@@ -25,6 +25,8 @@ contract VKatMetadataTest is Test {
     address public token3 = address(0x102);
     address public nonWhitelistedToken = address(0x200);
 
+    address public kat = address(0x300); // KAT token address
+    address public autocompound;
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     IVKatMetadata.VKatMetaDataV1 defaultPrefs;
@@ -33,24 +35,14 @@ contract VKatMetadataTest is Test {
         // Deploy mock contracts
         vkat = new MockERC721();
         dao = new MockDAO();
-
-        // Setup default preferences
-        defaultPrefs.rewardTokens = new address[](2);
-        defaultPrefs.rewardTokens[0] = token1;
-        defaultPrefs.rewardTokens[1] = token2;
-        defaultPrefs.rewardTokenWeights = new uint16[](2);
-        defaultPrefs.rewardTokenWeights[0] = 60;
-        defaultPrefs.rewardTokenWeights[1] = 40;
-
-        // Deploy implementation
         implementation = new VKatMetadata();
 
         // Deploy proxy
-        bytes memory initData = abi.encodeWithSelector(
-            VKatMetadata.initialize.selector, address(dao), address(vkat), defaultPrefs.rewardTokens, defaultPrefs
-        );
+        bytes memory initData =
+            abi.encodeWithSelector(VKatMetadata.initialize.selector, address(dao), kat, new address[](0));
 
         metadata = VKatMetadata(address(new ERC1967Proxy(address(implementation), initData)));
+        autocompound = metadata.AUTOCOMPOUND_RESERVED_ADDRESS();
 
         // Setup DAO permissions
         dao.grant(address(metadata), admin, ADMIN_ROLE);
@@ -73,25 +65,22 @@ contract VKatMetadataTest is Test {
     // ============= Initialization Tests =============
 
     function test_Initialization() public view {
-        assertEq(address(metadata.vKat()), address(vkat));
+        assertEq(address(metadata.kat()), address(kat));
 
         // Check default preferences
         IVKatMetadata.VKatMetaDataV1 memory prefs = metadata.getDefaultPreferences();
-        assertEq(prefs.rewardTokens.length, 2);
-        assertEq(prefs.rewardTokens[0], token1);
-        assertEq(prefs.rewardTokens[1], token2);
-        assertEq(prefs.rewardTokenWeights[0], 60);
-        assertEq(prefs.rewardTokenWeights[1], 40);
+        assertEq(prefs.rewardTokens.length, 1);
+        assertEq(prefs.rewardTokens[0], metadata.AUTOCOMPOUND_RESERVED_ADDRESS());
+        assertEq(prefs.rewardTokenWeights[0], 1);
 
         // Check whitelisted tokens
-        assertTrue(metadata.isRewardToken(token1));
-        assertTrue(metadata.isRewardToken(token2));
-        assertFalse(metadata.isRewardToken(token3));
+        assertTrue(metadata.isRewardToken(metadata.AUTOCOMPOUND_RESERVED_ADDRESS()));
+        assertTrue(metadata.isRewardToken(kat)); // KAT token should be whitelisted
     }
 
     function test_Revert_IfInitializeAgain() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        metadata.initialize(address(dao), address(vkat), new address[](0), defaultPrefs);
+        metadata.initialize(address(dao), address(vkat), new address[](0));
     }
 
     // ============= Admin Functions Tests =============
@@ -107,6 +96,8 @@ contract VKatMetadataTest is Test {
     }
 
     function testRevert_IfRewardTokenAlreadyExists() public prankAdmin {
+        metadata.addRewardToken(token1);
+
         vm.expectRevert(abi.encodeWithSelector(IVKatMetadata.TokenAlreadyInWhitelist.selector, token1));
         metadata.addRewardToken(token1);
     }
@@ -127,7 +118,16 @@ contract VKatMetadataTest is Test {
         metadata.addRewardToken(token3);
     }
 
+    function test_Revert_CannotRemoveReservedTokens() public prankAdmin {
+        vm.expectRevert(abi.encodeWithSelector(IVKatMetadata.ReservedAddressCannotBeRemoved.selector));
+        metadata.removeRewardToken(autocompound);
+        vm.expectRevert(abi.encodeWithSelector(IVKatMetadata.ReservedAddressCannotBeRemoved.selector));
+        metadata.removeRewardToken(kat);
+    }
+
     function test_RemoveRewardToken() public prankAdmin {
+        // First add the token
+        metadata.addRewardToken(token1);
         assertTrue(metadata.isRewardToken(token1));
 
         vm.expectEmit(true, false, false, false);
@@ -188,6 +188,9 @@ contract VKatMetadataTest is Test {
     }
 
     function test_SetDefaultPreferences() public prankAdmin {
+        // First add the token to whitelist
+        metadata.addRewardToken(token2);
+
         IVKatMetadata.VKatMetaDataV1 memory newDefaults;
         newDefaults.rewardTokens = new address[](1);
         newDefaults.rewardTokens[0] = token2;
@@ -226,16 +229,29 @@ contract VKatMetadataTest is Test {
         customPrefs.rewardTokenWeights[0] = 100;
         customPrefs.rewardTokenWeights[1] = 100;
 
-        vm.expectRevert(abi.encodeWithSelector(IVKatMetadata.LengthMismatch.selector));
+        vm.expectRevert(IVKatMetadata.LengthMismatch.selector);
         vm.prank(alice);
+        metadata.setPreferences(customPrefs);
+    }
+
+    function testRevert_SetPreferences_WhenDuplicatedTokens() public {
+        IVKatMetadata.VKatMetaDataV1 memory customPrefs;
+        customPrefs.rewardTokens = new address[](2);
+        customPrefs.rewardTokens[0] = kat;
+        customPrefs.rewardTokens[1] = kat;
+        customPrefs.rewardTokenWeights = new uint16[](2);
+        customPrefs.rewardTokenWeights[0] = 30;
+        customPrefs.rewardTokenWeights[1] = 30;
+
+        vm.expectRevert(IVKatMetadata.DuplicateRewardToken.selector);
         metadata.setPreferences(customPrefs);
     }
 
     function test_SetPreferences() public {
         IVKatMetadata.VKatMetaDataV1 memory customPrefs;
         customPrefs.rewardTokens = new address[](2);
-        customPrefs.rewardTokens[0] = token2;
-        customPrefs.rewardTokens[1] = token1;
+        customPrefs.rewardTokens[0] = autocompound;
+        customPrefs.rewardTokens[1] = kat;
         customPrefs.rewardTokenWeights = new uint16[](2);
         customPrefs.rewardTokenWeights[0] = 30;
         customPrefs.rewardTokenWeights[1] = 70;
@@ -248,8 +264,8 @@ contract VKatMetadataTest is Test {
         IVKatMetadata.VKatMetaDataV1 memory prefs = metadata.getPreferencesOrDefault(alice);
 
         assertEq(prefs.rewardTokens.length, 2);
-        assertEq(prefs.rewardTokens[0], token2);
-        assertEq(prefs.rewardTokens[1], token1);
+        assertEq(prefs.rewardTokens[0], autocompound);
+        assertEq(prefs.rewardTokens[1], kat);
         assertEq(prefs.rewardTokenWeights[0], 30);
         assertEq(prefs.rewardTokenWeights[1], 70);
     }
@@ -259,51 +275,59 @@ contract VKatMetadataTest is Test {
     function test_GetPreferencesOrDefaultWithCustomPreferences() public {
         // Set custom preferences
         IVKatMetadata.VKatMetaDataV1 memory customPrefs;
-        customPrefs.rewardTokens = new address[](1);
-        customPrefs.rewardTokens[0] = token1;
-        customPrefs.rewardTokenWeights = new uint16[](1);
+        customPrefs.rewardTokens = new address[](2);
+        customPrefs.rewardTokens[0] = kat;
+        customPrefs.rewardTokens[1] = autocompound;
+
+        customPrefs.rewardTokenWeights = new uint16[](2);
         customPrefs.rewardTokenWeights[0] = 100;
+        customPrefs.rewardTokenWeights[0] = 200;
 
         vm.prank(alice);
         metadata.setPreferences(customPrefs);
 
         IVKatMetadata.VKatMetaDataV1 memory prefs = metadata.getPreferencesOrDefault(alice);
 
-        assertEq(prefs.rewardTokens.length, 1);
-        assertEq(prefs.rewardTokens[0], token1);
+        assertEq(prefs.rewardTokens.length, 2);
+        assertEq(prefs.rewardTokens[0], kat);
+        assertEq(prefs.rewardTokens[1], autocompound);
     }
 
     function test_GetPreferencesOrDefaultWithoutCustomPreferences() public view {
         IVKatMetadata.VKatMetaDataV1 memory prefs = metadata.getPreferencesOrDefault(alice);
 
         // Should return default preferences
-        assertEq(prefs.rewardTokens.length, 2);
-        assertEq(prefs.rewardTokens[0], token1);
-        assertEq(prefs.rewardTokens[1], token2);
+        assertEq(prefs.rewardTokens.length, 1);
+        assertEq(prefs.rewardTokens[0], autocompound);
     }
 
-    function test_AllowedRewardTokens() public {
+    function test_AllowedRewardTokens() public prankAdmin {
         address[] memory tokens = metadata.allowedRewardTokens();
         assertEq(tokens.length, 2);
-        assertEq(tokens[0], token1);
-        assertEq(tokens[1], token2);
 
         // Add a new token
-        vm.prank(admin);
         metadata.addRewardToken(token3);
+        metadata.addRewardToken(token2);
+
+        tokens = metadata.allowedRewardTokens();
+        assertEq(tokens.length, 4);
+
+        // Remove a token
+        metadata.removeRewardToken(token3);
 
         tokens = metadata.allowedRewardTokens();
         assertEq(tokens.length, 3);
-
-        // Remove a token
-        vm.prank(admin);
-        metadata.removeRewardToken(token1);
-
-        tokens = metadata.allowedRewardTokens();
-        assertEq(tokens.length, 2);
         // Note: EnumerableSet doesn't guarantee order after removal
-        assertTrue(tokens[0] == token3 || tokens[0] == token2);
-        assertTrue(tokens[1] == token3 || tokens[1] == token2);
+        // loop over all tokens and check found
+        bool found = false;
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            if (tokens[i] == token3) {
+                found = true;
+                break;
+            }
+        }
+        assertFalse(found);
     }
 
     // ============= Edge Cases & Complex Scenarios =============
@@ -316,7 +340,7 @@ contract VKatMetadataTest is Test {
         // Second update
         IVKatMetadata.VKatMetaDataV1 memory prefs2;
         prefs2.rewardTokens = new address[](1);
-        prefs2.rewardTokens[0] = token2;
+        prefs2.rewardTokens[0] = kat;
         prefs2.rewardTokenWeights = new uint16[](1);
         prefs2.rewardTokenWeights[0] = 100;
 
@@ -326,13 +350,13 @@ contract VKatMetadataTest is Test {
         IVKatMetadata.VKatMetaDataV1 memory finalPrefs = metadata.getPreferencesOrDefault(alice);
 
         assertEq(finalPrefs.rewardTokens.length, 1);
-        assertEq(finalPrefs.rewardTokens[0], token2);
+        assertEq(finalPrefs.rewardTokens[0], kat);
     }
 
     function test_EmptyRewardTokensAndWeights() public {
         IVKatMetadata.VKatMetaDataV1 memory prefs;
         prefs.rewardTokens = new address[](1);
-        prefs.rewardTokens[0] = token2;
+        prefs.rewardTokens[0] = kat;
         prefs.rewardTokenWeights = new uint16[](1);
         prefs.rewardTokenWeights[0] = 100;
         vm.prank(alice);
@@ -348,8 +372,8 @@ contract VKatMetadataTest is Test {
         // Still must get default preferences as alice set it back to empty.
         IVKatMetadata.VKatMetaDataV1 memory storedPrefs = metadata.getPreferencesOrDefault(alice);
 
-        assertEq(storedPrefs.rewardTokens.length, 2);
-        assertEq(storedPrefs.rewardTokenWeights.length, 2);
+        assertEq(storedPrefs.rewardTokens.length, 1);
+        assertEq(storedPrefs.rewardTokenWeights.length, 1);
     }
 
     // ============= Upgrade Tests =============
@@ -432,5 +456,22 @@ contract VKatMetadataTest is Test {
         }
 
         vm.stopPrank();
+    }
+
+    function test_setAutocompoundPreference() public {
+        // Create preferences with fuzzed data
+        IVKatMetadata.VKatMetaDataV1 memory prefs;
+        prefs.rewardTokens = new address[](1);
+        prefs.rewardTokens[0] = metadata.AUTOCOMPOUND_RESERVED_ADDRESS();
+        prefs.rewardTokenWeights = new uint16[](1);
+        prefs.rewardTokenWeights[0] = 10000;
+
+        vm.prank(alice);
+        metadata.setPreferences(prefs);
+
+        // Verify preferences were set correctly
+        IVKatMetadata.VKatMetaDataV1 memory storedPrefs = metadata.getPreferencesOrDefault(alice);
+
+        assertEq(storedPrefs.rewardTokens[0], 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF);
     }
 }

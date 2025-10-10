@@ -7,14 +7,15 @@ import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { Swapper } from "src/Swapper.sol";
-import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
+import { AragonMerklAutoCompoundStrategy as AutoCompoundStrategy } from
+    "src/strategies/AragonMerklAutoCompoundStrategy.sol";
 import { VKatMetadata } from "src/VKatMetadata.sol";
 import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
 
 function deployVault(
     address _dao,
     address _escrow,
-    address _strategy,
+    address _defaultStrategy,
     string memory _name,
     string memory _symbol
 )
@@ -23,7 +24,7 @@ function deployVault(
     address vaultBase = address(new AvKATVault());
 
     address vault = ProxyLib.deployUUPSProxy(
-        vaultBase, abi.encodeCall(AvKATVault.initialize, (_dao, _escrow, _strategy, _name, _symbol))
+        vaultBase, abi.encodeCall(AvKATVault.initialize, (_dao, _escrow, _defaultStrategy, _name, _symbol))
     );
 
     return (vaultBase, vault);
@@ -63,9 +64,8 @@ function deployVKatMetadata(
 {
     address metadataBase = address(new VKatMetadata());
 
-    address vkatMetadata = ProxyLib.deployUUPSProxy(
-        metadataBase, abi.encodeCall(VKatMetadata.initialize, (_dao, _token, _rewardTokens, _defaultPreferences))
-    );
+    address vkatMetadata =
+        ProxyLib.deployUUPSProxy(metadataBase, abi.encodeCall(VKatMetadata.initialize, (_dao, _token, _rewardTokens)));
 
     return (metadataBase, vkatMetadata);
 }

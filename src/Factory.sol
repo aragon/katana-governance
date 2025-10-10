@@ -4,26 +4,25 @@ pragma solidity ^0.8.17;
 import { PermissionLib } from "@aragon/osx-commons-contracts/src/permission/PermissionLib.sol";
 import { PermissionManager } from "@aragon/osx/core/permission/PermissionManager.sol";
 
-import { VotingEscrow } from "@setup/GaugeVoterSetup_v1_4_0.sol";
+import { VotingEscrow, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import { DAO } from "@aragon/osx/core/dao/DAO.sol";
 
 import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
-import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
-import { AccessControlManager } from "@merkl/AccessControlManager.sol";
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { VKatMetadata } from "src/VKatMetadata.sol";
 import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
-import { AutoCompoundStrategy } from "src/strategies/AutoCompoundStrategy.sol";
-
-import { MockERC20 } from "@mocks/MockERC20.sol";
+import { AragonMerklAutoCompoundStrategy as AutoCompoundStrategy } from
+    "src/strategies/AragonMerklAutoCompoundStrategy.sol";
 
 import { deploySwapper } from "src/utils/Deployers.sol";
+import { DefaultStrategy } from "src/strategies/DefaultStrategy.sol";
 
 struct BaseContracts {
     address vault;
     address autoCompoundStrategy;
+    address defaultStrategy;
     address vkatMetadata;
 }
 
@@ -37,6 +36,7 @@ struct DeploymentParameters {
 struct Deployment {
     address vault;
     address autoCompoundStrategy;
+    address defaultStrategy;
     address swapper;
     address vkatMetadata;
 }
@@ -62,25 +62,26 @@ contract Factory {
 
         // ======== Deploys Vkat Related contracts ========
 
+        deps.defaultStrategy = bases.defaultStrategy.deployUUPSProxy(
+            abi.encodeCall(DefaultStrategy.initialize, (_params.dao, _params.escrow, address(0)))
+        );
+
         deps.vault = bases.vault.deployUUPSProxy(
             abi.encodeCall(
-                AvKATVault.initialize, (_params.dao, _params.escrow, address(0), "Autocompounding veKAT", "avKAT")
+                AvKATVault.initialize,
+                (_params.dao, _params.escrow, deps.defaultStrategy, "Autocompounding vKAT", "avKAT")
             )
         );
+
+        DefaultStrategy(deps.defaultStrategy).initializeOwner(deps.vault);
+
+        address nftLock = VotingEscrow(_params.escrow).lockNFT();
 
         // deploy swapper
         deps.swapper = deploySwapper(_params.merklDistributor, _params.escrow, _params.executor);
 
         deps.vkatMetadata = bases.vkatMetadata.deployUUPSProxy(
-            abi.encodeCall(
-                VKatMetadata.initialize,
-                (
-                    _params.dao,
-                    VotingEscrow(_params.escrow).lockNFT(),
-                    new address[](0),
-                    IVKatMetadata.VKatMetaDataV1(new uint16[](0), new address[](0))
-                )
-            )
+            abi.encodeCall(VKatMetadata.initialize, (_params.dao, nftLock, new address[](0)))
         );
 
         deps.autoCompoundStrategy = bases.autoCompoundStrategy.deployUUPSProxy(
@@ -90,14 +91,22 @@ contract Factory {
             )
         );
 
-        Action[] memory actions = getActions(_params.dao, deps);
+        Action[] memory actions = getActions(_params.dao, nftLock, deps);
         DAO(payable(_params.dao)).execute(bytes32(uint256(uint160(address(this)))), actions, 0);
 
         return deps;
     }
 
-    function getActions(address _dao, Deployment memory _deps) internal view returns (Action[] memory) {
-        PermissionLib.MultiTargetPermission[] memory permissions = new PermissionLib.MultiTargetPermission[](5);
+    function getActions(
+        address _dao,
+        address _nftLock,
+        Deployment memory _deps
+    )
+        internal
+        view
+        returns (Action[] memory)
+    {
+        PermissionLib.MultiTargetPermission[] memory permissions = new PermissionLib.MultiTargetPermission[](6);
 
         // VKatMetadata permissions
         permissions[0] = PermissionLib.MultiTargetPermission({
@@ -117,8 +126,17 @@ contract Factory {
             condition: PermissionLib.NO_CONDITION
         });
 
-        // vault permissions
+        // default strategy permissions
         permissions[2] = PermissionLib.MultiTargetPermission({
+            operation: PermissionLib.Operation.Grant,
+            where: _deps.defaultStrategy,
+            who: _dao,
+            permissionId: DefaultStrategy(_deps.defaultStrategy).DEFAULT_STRATEGY_ADMIN_ROLE(),
+            condition: PermissionLib.NO_CONDITION
+        });
+
+        // vault permissions
+        permissions[3] = PermissionLib.MultiTargetPermission({
             operation: PermissionLib.Operation.Grant,
             where: _deps.vault,
             who: _dao,
@@ -126,7 +144,7 @@ contract Factory {
             condition: PermissionLib.NO_CONDITION
         });
 
-        permissions[3] = PermissionLib.MultiTargetPermission({
+        permissions[4] = PermissionLib.MultiTargetPermission({
             operation: PermissionLib.Operation.Grant,
             where: _deps.vault,
             who: _dao,
@@ -137,7 +155,7 @@ contract Factory {
         // This factory needs execute permission on dao to work.
         // This revokes execute permission as all other work
         // has been done at this point.
-        permissions[4] = PermissionLib.MultiTargetPermission({
+        permissions[5] = PermissionLib.MultiTargetPermission({
             operation: PermissionLib.Operation.Revoke,
             where: _dao,
             who: address(this),
@@ -145,13 +163,16 @@ contract Factory {
             condition: PermissionLib.NO_CONDITION
         });
 
-        Action[] memory actions = new Action[](2);
+        Action[] memory actions = new Action[](3);
 
         actions[0].to = _dao;
         actions[0].data = abi.encodeCall(PermissionManager.applyMultiTargetPermissions, permissions);
 
-        actions[1].to = _deps.vault;
-        actions[1].data = abi.encodeCall(AvKATVault.setStrategy, _deps.autoCompoundStrategy);
+        actions[1].to = _nftLock;
+        actions[1].data = abi.encodeCall(LockNFT.setWhitelisted, (_deps.defaultStrategy, true));
+
+        actions[2].to = _nftLock;
+        actions[2].data = abi.encodeCall(LockNFT.setWhitelisted, (_deps.autoCompoundStrategy, true));
 
         return actions;
     }

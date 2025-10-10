@@ -19,19 +19,21 @@ contract VaultDonateTest is Base {
         _mintAndApprove(bob, address(vault), _parseToken(1000));
     }
 
-    function testRevert_IfMasterTokenNotSet() public {
+    function testRevert_IfPaused() public {
         address base = address(new Vault());
 
         Vault newVault = Vault(
             base.deployUUPSProxy(
-                abi.encodeCall(Vault.initialize, (address(dao), address(escrow), address(0), "Test Vault", "TEST"))
+                abi.encodeCall(
+                    Vault.initialize, (address(dao), address(escrow), address(defaultStrategy), "Test Vault", "TEST")
+                )
             )
         );
 
         vm.startPrank(alice);
         escrowToken.approve(address(newVault), _parseToken(100));
 
-        vm.expectRevert(Vault.StrategyNotSet.selector);
+        vm.expectRevert("Pausable: paused");
         newVault.donate(_parseToken(100));
         vm.stopPrank();
     }
@@ -185,7 +187,6 @@ contract VaultDonateTest is Base {
     function testFuzz_DonateAlwaysIncreasesShareValue(uint256 depositAmount, uint256 donateAmount) public {
         depositAmount = bound(depositAmount, escrow.minDeposit(), type(uint128).max);
         donateAmount = bound(donateAmount, escrow.minDeposit(), type(uint128).max);
-
         _mintAndApprove(alice, address(vault), depositAmount);
         _mintAndApprove(bob, address(vault), donateAmount);
 

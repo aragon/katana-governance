@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-
 interface IVaultNFT {
     event Sweep(uint256 tokenId, address receiver);
-    event TokenIdWithdrawn(uint256 tokenId, address receiver);
-    event TokenIdDepositted(uint256 tokenId, address sender);
+    event TokenIdWithdrawn(uint256 indexed tokenId, address indexed receiver);
+    event TokenIdDepositted(uint256 indexed tokenId, address indexed sender);
 
     error CannotTransferMasterToken();
     error MasterTokenAlreadySet();
     error TokenIdCannotBeZero();
 
-    /// @notice Allows to set up masterTokenId initially.
-    function initializeMasterTokenId(uint256 _tokenId) external;
+    /// @notice Allows to set up masterTokenId and strategy initially.
+    function initializeMasterTokenAndStrategy(uint256 _tokenId, address _strategy) external;
 
     /// @notice deposit tokenId into the vault.
     /// @dev The assets amount derivation is up to the implementation.
@@ -25,4 +23,8 @@ interface IVaultNFT {
 
     /// @notice send veNFT mistakenly transferred to vault to `_receiver`.
     function recoverNFT(uint256 _tokenId, address _receiver) external;
+
+    /// @notice Defines the minimum amount needed to initialize the master token.
+    ///         Ensures the vault is not empty at start and protects against inflation attacks.
+    function minMasterTokenInitAmount() external view returns (uint256);
 }
