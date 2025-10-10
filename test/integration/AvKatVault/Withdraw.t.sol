@@ -6,6 +6,8 @@ import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/au
 
 import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
+import { IVaultNFT as IVault } from "src/interfaces/IVaultNFT.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 import { deployVault } from "src/utils/Deployers.sol";
 
@@ -18,10 +20,10 @@ contract VaultWithdrawTest is Base {
         _mintAndApprove(bob, address(vault), _parseToken(1000));
     }
 
-    function testRevert_IfMasterTokenNotSet() public {
-        (, address vault) = deployVault(address(dao), address(escrow), address(0), "Test Vault", "TEST");
+    function testRevert_1_IfPaused() public {
+        (, address vault) = deployVault(address(dao), address(escrow), address(defaultStrategy), "Test Vault", "TEST");
 
-        vm.expectRevert(Vault.MasterTokenNotSet.selector);
+        vm.expectRevert("Pausable: paused");
         Vault(vault).deposit(_parseToken(100), alice);
     }
 
@@ -35,7 +37,6 @@ contract VaultWithdrawTest is Base {
 
         // before amounts
         uint256 totalAssetsBefore = vault.totalAssets();
-        uint256 assetsBefore = escrowToken.balanceOf(alice);
         uint256 sharesBefore = vault.balanceOf(alice);
 
         // Alice withdraws 50
@@ -70,7 +71,7 @@ contract VaultWithdrawTest is Base {
         uint256 expectedTokenId = lockNft.tokenByIndex(lastIndex) + 2;
 
         vm.expectEmit();
-        emit Vault.TokenIdWithdrawn(expectedTokenId, receiver);
+        emit IVault.TokenIdWithdrawn(expectedTokenId, receiver);
 
         // alice withdraws and specifies `receiver` as recipient.
         vm.prank(alice);
@@ -309,6 +310,183 @@ contract VaultWithdrawTest is Base {
         assertEq(vault.totalAssets(), totalAssetsBefore - withdrawAmount);
     }
 
+    // ================== WithdrawTokenId Tests ==================
+
+    function test_WithdrawTokenId() public {
+        uint256 depositAmount = _parseToken(100);
+        uint256 withdrawAmount = _parseToken(50);
+
+        vm.prank(alice);
+        vault.deposit(depositAmount, alice);
+
+        uint256 totalAssetsBefore = vault.totalAssets();
+        uint256 sharesBefore = vault.balanceOf(alice);
+
+        uint256 lastIndex = lockNft.totalSupply() - 1;
+        uint256 expectedTokenId = lockNft.tokenByIndex(lastIndex) + 2;
+
+        vm.expectEmit();
+        emit IVault.TokenIdWithdrawn(expectedTokenId, alice);
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Withdraw(alice, alice, alice, withdrawAmount, withdrawAmount);
+
+        vm.prank(alice);
+        uint256 tokenId = vault.withdrawTokenId(withdrawAmount, alice, alice);
+
+        assertEq(tokenId, expectedTokenId);
+        assertEq(lockNft.ownerOf(tokenId), alice);
+        assertEq(escrow.locked(tokenId).amount, withdrawAmount);
+        assertEq(vault.balanceOf(alice), sharesBefore - withdrawAmount);
+        assertEq(vault.totalAssets(), totalAssetsBefore - withdrawAmount);
+    }
+
+    function test_WithdrawTokenIdToReceiver() public {
+        address receiver = address(789);
+        uint256 depositAmount = _parseToken(100);
+        uint256 withdrawAmount = _parseToken(60);
+
+        vm.prank(alice);
+        vault.deposit(depositAmount, alice);
+
+        uint256 lastIndex = lockNft.totalSupply() - 1;
+        uint256 expectedTokenId = lockNft.tokenByIndex(lastIndex) + 2;
+
+        vm.expectEmit(true, true, true, true);
+        emit IVault.TokenIdWithdrawn(expectedTokenId, receiver);
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Withdraw(alice, receiver, alice, withdrawAmount, withdrawAmount);
+
+        vm.prank(alice);
+        uint256 tokenId = vault.withdrawTokenId(withdrawAmount, receiver, alice);
+
+        assertEq(lockNft.ownerOf(tokenId), receiver);
+        assertEq(escrow.locked(tokenId).amount, withdrawAmount);
+    }
+
+    function test_WithdrawTokenIdWithAllowance() public {
+        uint256 depositAmount = _parseToken(100);
+        uint256 withdrawAmount = _parseToken(50);
+
+        vm.startPrank(alice);
+        vault.deposit(depositAmount, alice);
+        vault.approve(bob, depositAmount);
+        vm.stopPrank();
+
+        vm.prank(bob);
+        uint256 tokenId = vault.withdrawTokenId(withdrawAmount, bob, alice);
+
+        assertEq(lockNft.ownerOf(tokenId), bob);
+        assertEq(vault.allowance(alice, bob), depositAmount - withdrawAmount);
+    }
+
+    function testRevert_WithdrawTokenIdMoreThanBalance() public {
+        uint256 depositAmount = _parseToken(100);
+
+        vm.prank(alice);
+        vault.deposit(depositAmount, alice);
+
+        vm.expectRevert();
+        vm.prank(alice);
+        vault.withdrawTokenId(depositAmount + 1, alice, alice);
+    }
+
+    function testRevert_WithdrawTokenIdWithoutAllowance() public {
+        uint256 depositAmount = _parseToken(100);
+
+        vm.prank(alice);
+        vault.deposit(depositAmount, alice);
+
+        vm.expectRevert();
+        vm.prank(bob);
+        vault.withdrawTokenId(_parseToken(50), bob, alice);
+    }
+
+    function test_WithdrawTokenIdAll() public {
+        uint256 depositAmount = _parseToken(100);
+
+        vm.prank(alice);
+        vault.deposit(depositAmount, alice);
+
+        vm.prank(alice);
+        uint256 tokenId = vault.withdrawTokenId(depositAmount, alice, alice);
+
+        assertEq(vault.balanceOf(alice), 0);
+        assertEq(escrow.locked(tokenId).amount, depositAmount);
+    }
+
+    function test_WithdrawTokenIdMultipleTimes() public {
+        uint256 depositAmount = _parseToken(150);
+
+        vm.prank(alice);
+        vault.deposit(depositAmount, alice);
+
+        vm.startPrank(alice);
+        uint256 tokenId1 = vault.withdrawTokenId(_parseToken(30), alice, alice);
+        uint256 tokenId2 = vault.withdrawTokenId(_parseToken(50), alice, alice);
+        uint256 tokenId3 = vault.withdrawTokenId(_parseToken(20), alice, alice);
+        vm.stopPrank();
+
+        assertEq(escrow.locked(tokenId1).amount, _parseToken(30));
+        assertEq(escrow.locked(tokenId2).amount, _parseToken(50));
+        assertEq(escrow.locked(tokenId3).amount, _parseToken(20));
+        assertEq(vault.balanceOf(alice), _parseToken(50));
+    }
+
+    function test_WithdrawTokenIdAfterDonation() public {
+        uint256 depositAmount = _parseToken(100);
+
+        vm.prank(alice);
+        vault.deposit(depositAmount, alice);
+
+        _mintAndApprove(bob, address(vault), _parseToken(100));
+        vm.prank(bob);
+        vault.donate(_parseToken(100));
+
+        uint256 sharesBefore = vault.balanceOf(alice);
+        uint256 previewShares = vault.previewWithdraw(_parseToken(100));
+
+        vm.prank(alice);
+        vault.withdrawTokenId(_parseToken(100), alice, alice);
+
+        assertLt(previewShares, _parseToken(100));
+        assertEq(vault.balanceOf(alice), sharesBefore - previewShares);
+    }
+
+    function test_WithdrawTokenIdPreviewMatchesActual() public {
+        uint256 depositAmount = _parseToken(100);
+        uint256 withdrawAmount = _parseToken(50);
+
+        vm.prank(alice);
+        vault.deposit(depositAmount, alice);
+
+        uint256 previewedShares = vault.previewWithdraw(withdrawAmount);
+
+        vm.prank(alice);
+        vault.withdrawTokenId(withdrawAmount, alice, alice);
+
+        uint256 sharesBurned = depositAmount - vault.balanceOf(alice);
+        assertEq(sharesBurned, previewedShares);
+    }
+
+    function testFuzz_WithdrawTokenId(uint256 depositAmount, uint256 withdrawAmount) public {
+        depositAmount = bound(depositAmount, escrow.minDeposit(), type(uint128).max);
+        withdrawAmount = bound(withdrawAmount, escrow.minDeposit(), depositAmount);
+
+        _mintAndApprove(alice, address(vault), depositAmount);
+
+        vm.prank(alice);
+        vault.deposit(depositAmount, alice);
+
+        uint256 totalAssetsBefore = vault.totalAssets();
+
+        vm.prank(alice);
+        uint256 tokenId = vault.withdrawTokenId(withdrawAmount, alice, alice);
+
+        assertEq(escrow.locked(tokenId).amount, withdrawAmount);
+        assertEq(lockNft.ownerOf(tokenId), alice);
+        assertEq(vault.totalAssets(), totalAssetsBefore - withdrawAmount);
+    }
+
     // ================== Recover NFT ==================
     function testRevert_RecoverNFTUnauthorized() public {
         vm.prank(alice);
@@ -327,7 +505,7 @@ contract VaultWithdrawTest is Base {
         vm.startPrank(alice);
         uint256 tokenId = escrow.createLock(_parseToken(50));
         lockNft.setApprovalForAll(address(vault), true);
-        vault.depositToken(tokenId, alice);
+        vault.depositTokenId(tokenId, alice);
         vm.stopPrank();
 
         vm.expectRevert("ERC721: invalid token ID");
@@ -335,7 +513,14 @@ contract VaultWithdrawTest is Base {
     }
 
     function testRevert_IfRecoversMasterTokenId() public {
-        vm.expectRevert(Vault.CannotTransferMasterToken.selector);
+        vm.expectRevert();
+        vault.recoverNFT(masterTokenId, address(this));
+
+        // set strategy to address 0. This transfers master token id to vault
+        vault.setStrategy(address(0));
+
+        // It shouldn't allow to withdraw master token id.
+        vm.expectRevert(IVault.CannotTransferMasterToken.selector);
         vault.recoverNFT(masterTokenId, address(this));
     }
 
@@ -358,7 +543,7 @@ contract VaultWithdrawTest is Base {
         lockNft.transferFrom(address(this), address(vault), tokenId);
 
         vm.expectEmit(true, true, true, true);
-        emit Vault.Sweep(tokenId, address(this));
+        emit IVault.Sweep(tokenId, address(this));
 
         vault.recoverNFT(tokenId, address(this));
     }

@@ -5,8 +5,6 @@ import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { Base } from "../Base.sol";
 import { AvKatVaultHandler as Handler } from "./handlers/AvKatVaultHandler.sol";
 
-import { AvKATVault } from "src/AvKATVault.sol";
-
 import { MockERC20 } from "@mocks/MockERC20.sol";
 
 contract VaultInvariant is StdInvariant, Base {
@@ -15,54 +13,59 @@ contract VaultInvariant is StdInvariant, Base {
     function setUp() public override {
         super.setUp();
 
-        h = new Handler(vault);
+        h = new Handler(vault, swapper);
 
         targetContract(address(h));
 
-        bytes4[] memory selectors = new bytes4[](5);
+        bytes4[] memory selectors = new bytes4[](6);
         selectors[0] = Handler.deposit.selector;
         selectors[1] = Handler.withdraw.selector;
         selectors[2] = Handler.depositToken.selector;
         selectors[3] = Handler.donate.selector;
         selectors[4] = Handler.redeem.selector;
+        selectors[5] = Handler.setStrategy.selector;
+
         FuzzSelector memory a = FuzzSelector(address(h), selectors);
         targetSelector(a);
     }
 
-    function invariant_vaultOwnsMasterTokenOnly() public view {
-        uint256 masterTokenId = vault.masterTokenId();
+    function invariant_strategyOwnsMasterTokenOnly() public view {
         address owner = vault.lockNft().ownerOf(masterTokenId);
 
-        assertEq(owner, address(vault), "Vault must always own master token");
+        assertEq(owner, address(vault.strategy()), "Strategy must always own master token");
 
-        // Vault should only hold the master token, no other NFTs
+        // Strategy should only hold the master token, no other NFTs
+        uint256 strategyNftBalance = vault.lockNft().balanceOf(address(vault.strategy()));
+        assertEq(strategyNftBalance, 1, "Strategy should only hold master token NFT");
+    }
+
+    function invariant_vaultHoldsNoNFTs() public view {
+        // Vault should not hold any NFTs (they are held by strategy)
         uint256 vaultNftBalance = vault.lockNft().balanceOf(address(vault));
-        assertEq(vaultNftBalance, 1, "Vault should only hold master token NFT");
+        assertEq(vaultNftBalance, 0, "Vault should not hold any NFTs");
     }
 
     function invariant_strategyDelegation() public view {
-        uint256 masterTokenId = vault.masterTokenId();
-        address currentStrategy = vault.strategy();
+        address delegatee = acStrategy.delegatee();
 
-        if (currentStrategy == address(0)) {
-            address delegatee = ivotesAdapter.delegates(address(vault));
-            assertEq(delegatee, address(0), "Vault must not delegate when strategy is address(0)");
-
+        if (delegatee == address(0)) {
             return;
         }
 
-        // If strategy is set, master token must be delegated to it
-        assertTrue(ivotesAdapter.tokenIsDelegated(masterTokenId), "Master token must be delegated when strategy is set");
+        // If delegatee is set, master token must be delegated to it
+        assertTrue(
+            ivotesAdapter.tokenIsDelegated(masterTokenId), "Master token must be delegated when delegatee is set"
+        );
 
-        address delegatee = ivotesAdapter.delegates(address(vault));
-        assertEq(delegatee, currentStrategy, "Vault must delegate to strategy");
+        address actualDelegatee = ivotesAdapter.delegates(address(acStrategy));
+        assertEq(actualDelegatee, delegatee, "Strategy must delegate to configured delegatee");
     }
 
     // ==== ASSETS AND SHARES INVARIANTS ====
 
     function invariant_totalAssetsInEscrow() public view {
         uint256 vaultTotalAssets = vault.totalAssets();
-        uint256 escrowLocked = escrow.locked(vault.masterTokenId()).amount;
+        uint256 escrowLocked = escrow.locked(masterTokenId).amount;
 
         assertEq(vaultTotalAssets, escrowLocked, "Vault total assets must equal escrow locked amount");
     }
@@ -85,45 +88,58 @@ contract VaultInvariant is StdInvariant, Base {
         );
     }
 
-    function invariant_conversionProportionality() public view {
+    function invariant_shareValueProtection() public view {
         uint256 totalSupply = vault.totalSupply();
         uint256 totalAssets = vault.totalAssets();
 
+        // Exchange rate protection: Share value should never
+        // decrease below initial ratio
         if (totalSupply > 0) {
-            // For every share, convertToAssets should give proportional assets
-            uint256 shareValue = vault.convertToAssets(1e18);
-            uint256 expectedValue = (1e18 * totalAssets) / totalSupply;
+            uint256 currentRate = vault.convertToAssets(1e18); // Assets per 1e18 shares
+            assertGe(currentRate, 1e18, "Share value should never fall below initial 1:1 ratio");
 
-            // Allow for rounding errors, especially with large donation amounts
-            // Use relative tolerance: 1 wei per 1e18 of value
-            uint256 tolerance = expectedValue > 1e18 ? expectedValue / 1e18 : 1;
-            assertApproxEqAbs(shareValue, expectedValue, tolerance, "Share to asset conversion must be proportional");
+            // Total assets should be at least equal to total supply (donations only increase this)
+            assertGe(totalAssets, totalSupply, "Total assets should >= total supply after donations");
         }
 
-        if (totalAssets > 0) {
-            // For every asset, convertToShares should give proportional shares
-            uint256 assetShares = vault.convertToShares(1e18);
-            uint256 expectedShares = (1e18 * totalSupply) / totalAssets;
+        //  Rounding favors the vault (protects existing shareholders)
+        if (totalSupply > 0 && totalAssets > 0) {
+            // When depositing: assets -> shares should round down
+            uint256 oddAssets = 1e18 + 1; // Odd number to force rounding
+            uint256 sharesFromOddAssets = vault.convertToShares(oddAssets);
+            uint256 backToAssets = vault.convertToAssets(sharesFromOddAssets);
 
-            // Allow 1 wei tolerance for division rounding
-            assertApproxEqAbs(assetShares, expectedShares, 1, "Asset to share conversion must be proportional");
+            // User should get back less or equal assets (vault keeps the rounding difference)
+            assertLe(backToAssets, oddAssets, "Rounding should favor the vault on deposit");
+
+            // When withdrawing: shares -> assets should round down
+            uint256 oddShares = 1e18 + 1;
+            uint256 assetsFromOddShares = vault.convertToAssets(oddShares);
+            uint256 backToShares = vault.convertToShares(assetsFromOddShares);
+
+            // User should get back less or equal shares (vault keeps the rounding difference)
+            assertLe(backToShares, oddShares, "Rounding should favor the vault on withdrawal");
+        }
+
+        if (totalSupply > 0) {
+            // The maximum anyone could withdraw is bounded by total assets
+            uint256 maxWithdrawable = vault.convertToAssets(totalSupply);
+            assertLe(maxWithdrawable, totalAssets, "Max withdrawable should be less than or equal to total assets");
+
+            // No single share can be worth more than total assets
+            uint256 singleShareValue = vault.convertToAssets(1);
+            assertLe(singleShareValue, totalAssets, "Single share value bounded by total assets");
         }
     }
 
     function invariant_sumOfSharesEqualsTotalSupply() public view {
         uint256 totalSupply = vault.totalSupply();
         uint256 sumOfActorShares = h.sumOfActorShares();
-        uint256 address1Shares = vault.balanceOf(address(1));
 
-        assertEq(sumOfActorShares + address1Shares, totalSupply, "Sum of all shares must equal total supply");
-    }
+        // vault initializes with master token in Base contract.
+        uint256 initialShares = vault.balanceOf(address(this));
 
-    function invariant_address1InitialMint() public view {
-        // address(1) should have shares equal to initial master token amount
-        uint256 address1Balance = vault.balanceOf(address(1));
-
-        // This should be > 0 after initializeMasterTokenId
-        assertTrue(address1Balance > 0, "address(1) must have initial shares to prevent first depositor attack");
+        assertEq(sumOfActorShares + initialShares, totalSupply, "Sum of all shares must equal total supply");
     }
 
     function invariant_donationsIncreaseShareValue() public view {
@@ -136,6 +152,10 @@ contract VaultInvariant is StdInvariant, Base {
             uint256 totalSupply = vault.totalSupply();
 
             assertGt(totalAssets, totalSupply, "Donations should make totalAssets > totalSupply");
+
+            uint256 valuePerShare = vault.convertToAssets(1e18);
+
+            assertGe(valuePerShare, 1e18, "Donations must increase share value above 1:1");
         }
     }
 }

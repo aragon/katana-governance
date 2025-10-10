@@ -5,6 +5,7 @@ import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
+import { IVaultNFT as IVault } from "src/interfaces/IVaultNFT.sol";
 
 import { deployVault } from "src/utils/Deployers.sol";
 
@@ -17,10 +18,10 @@ contract VaultRedeemTest is Base {
         _mintAndApprove(bob, address(vault), _parseToken(1000));
     }
 
-    function testRevert_IfMasterTokenNotSet() public {
-        (, address vault) = deployVault(address(dao), address(escrow), address(0), "Test Vault", "TEST");
+    function testRevert_IfPaused() public {
+        (, address vault) = deployVault(address(dao), address(escrow), address(defaultStrategy), "Test Vault", "TEST");
 
-        vm.expectRevert(Vault.MasterTokenNotSet.selector);
+        vm.expectRevert("Pausable: paused");
         Vault(vault).deposit(_parseToken(100), alice);
     }
 
@@ -34,7 +35,6 @@ contract VaultRedeemTest is Base {
 
         // before amounts
         uint256 totalAssetsBefore = vault.totalAssets();
-        uint256 assetsBefore = escrowToken.balanceOf(alice);
         uint256 sharesBefore = vault.balanceOf(alice);
 
         // Alice redeems 50
@@ -69,7 +69,7 @@ contract VaultRedeemTest is Base {
         uint256 expectedTokenId = lockNft.tokenByIndex(lastIndex) + 2;
 
         vm.expectEmit();
-        emit Vault.TokenIdWithdrawn(expectedTokenId, receiver);
+        emit IVault.TokenIdWithdrawn(expectedTokenId, receiver);
 
         // alice redeems and specifies `receiver` as recipient.
         vm.prank(alice);

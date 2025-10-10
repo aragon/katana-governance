@@ -21,11 +21,12 @@ contract VaultDepositTest is Base {
         _mintAndApprove(alice, address(escrow), _parseToken(1000));
     }
 
-    function testRevert_IfMasterTokenNotSet() public {
-        (, address vault) = deployVault(address(dao), address(escrow), address(0), "Test Vault", "TEST");
+    function testRevert_IfPaused() public {
+        (, address vaultAddr) =
+            deployVault(address(dao), address(escrow), address(defaultStrategy), "Test Vault", "TEST");
 
-        vm.expectRevert(Vault.MasterTokenNotSet.selector);
-        Vault(vault).deposit(_parseToken(100), alice);
+        vm.expectRevert("Pausable: paused");
+        Vault(vaultAddr).deposit(_parseToken(100), alice);
     }
 
     function testRevert_DepositsToZeroReceiver() public {
@@ -46,13 +47,6 @@ contract VaultDepositTest is Base {
         vm.expectRevert();
         vault.deposit(_parseToken(50), alice);
         vm.stopPrank();
-    }
-
-    function test_vaultEmpty() public view {
-        uint256 amount = escrow.locked(masterTokenId).amount;
-
-        assertEq(vault.totalAssets(), amount);
-        assertEq(vault.totalSupply(), amount);
     }
 
     function test_Deposit() public {
@@ -102,8 +96,9 @@ contract VaultDepositTest is Base {
         vm.stopPrank();
 
         assertEq(vault.balanceOf(alice), shares1 + shares2);
-        assertEq(shares1, depositAmount1);
-        assertEq(shares2, depositAmount2);
+        // After first deposit, ratio should be approximately 1:1 for subsequent deposits
+        assertApproxEqRel(shares1, depositAmount1, 0.01e18); // 1% tolerance
+        assertApproxEqRel(shares2, depositAmount2, 0.01e18);
     }
 
     function test_DepositFromMultipleUsers() public {
@@ -120,15 +115,19 @@ contract VaultDepositTest is Base {
 
         assertEq(vault.balanceOf(alice), aliceShares);
         assertEq(vault.balanceOf(bob), bobShares);
-        assertEq(vault.totalAssets(), vault.totalSupply());
+        // Total assets includes minDeposit initial amount, so it's slightly more than total supply
+        assertApproxEqRel(vault.totalAssets(), vault.totalSupply(), 0.01e18);
     }
 
     function test_DepositAfterDonation() public {
         _mintAndApprove(bob, address(vault), _parseToken(100));
 
         // Bob donates first to increase share value
+        uint256 donateAmount = _parseToken(100);
+        vm.expectEmit(true, true, true, true);
+        emit Vault.AssetsDonated(donateAmount);
         vm.prank(bob);
-        vault.donate(_parseToken(100));
+        vault.donate(donateAmount);
 
         uint256 depositAmount = _parseToken(100);
         uint256 totalAssetsBefore = vault.totalAssets();

@@ -23,11 +23,14 @@ interface ISwapper {
         uint256 amount;
     }
 
-    /// @param _claim Tokens, their respective amounts to claim and merkle proofs for each.
-    /// @param _actions The custom actions used to swap tokens in `_outputToken`.
-    /// @param _pct How much percentage of swapped kat to create lock for.
-    /// @return tokenAmountGained Escrow token received from claims plus any other reward tokens swapped into it.
-    /// @return tokenId If `_pct` > 0, `tokenId` is the id of creation lock on escrow, otherwise 0.
+    /// @notice Claims reward tokens and optionally swaps some/all to KAT, then locks a percentage.
+    /// @dev Claims tokens from Merkle distributor, executes optional swaps to KAT, and locks % of
+    ///      resulting KAT in escrow. Not all claimed tokens need to be swapped.
+    /// @param _claim Tokens to claim with amounts and Merkle proofs
+    /// @param _actions Swap actions to execute (optional, can be partial)
+    /// @param _pct Percentage (0-100) of KAT to lock in escrow
+    /// @return tokenAmountGained Total KAT gained from claims and swaps
+    /// @return tokenId Escrow lock NFT ID if _pct > 0, else 0
     function claimAndSwap(
         Claim calldata _claim,
         Action[] calldata _actions,

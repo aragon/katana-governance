@@ -7,7 +7,7 @@ import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/Pro
 
 import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
-import { IVotingEscrowCoreErrors } from "@escrow/IVotingEscrowIncreasing_v1_2_0.sol";
+import { IVaultNFT as IVault } from "src/interfaces/IVaultNFT.sol";
 
 import { deployVault } from "src/utils/Deployers.sol";
 
@@ -23,11 +23,15 @@ contract VaultDepositTokenTest is Base {
         _mintAndApprove(bob, address(escrow), _parseToken(1000));
     }
 
-    function testRevert_IfMasterTokenNotSet() public {
-        (, address vault) = deployVault(address(dao), address(escrow), address(0), "Test Vault", "TEST");
+    function testRevert_IfPaused() public {
+        (, address vault) = deployVault(address(dao), address(escrow), address(defaultStrategy), "Test Vault", "TEST");
 
-        vm.expectRevert(Vault.MasterTokenNotSet.selector);
+        vm.startPrank(alice);
+        escrowToken.approve(address(escrow), _parseToken(50));
+        uint256 tokenId = escrow.createLock(_parseToken(50));
+        vm.expectRevert("Pausable: paused");
         Vault(vault).deposit(_parseToken(100), alice);
+        vm.stopPrank();
     }
 
     function testRevert_IfNotOwner() public {
@@ -38,7 +42,7 @@ contract VaultDepositTokenTest is Base {
 
         vm.expectRevert();
         vm.prank(bob);
-        vault.depositToken(tokenId, bob);
+        vault.depositTokenId(tokenId, bob);
     }
 
     function testRevert_IfNotApproved() public {
@@ -46,7 +50,7 @@ contract VaultDepositTokenTest is Base {
         uint256 tokenId = escrow.createLock(_parseToken(50));
 
         vm.expectRevert();
-        vault.depositToken(tokenId, alice);
+        vault.depositTokenId(tokenId, alice);
         vm.stopPrank();
     }
 
@@ -56,7 +60,7 @@ contract VaultDepositTokenTest is Base {
         lockNft.setApprovalForAll(address(vault), true);
 
         vm.expectRevert();
-        vault.depositToken(tokenId, address(0));
+        vault.depositTokenId(tokenId, address(0));
         vm.stopPrank();
     }
 
@@ -73,8 +77,10 @@ contract VaultDepositTokenTest is Base {
 
         vm.expectEmit(true, true, true, true);
         emit IERC4626.Deposit(alice, alice, depositAmount, depositAmount);
+        vm.expectEmit(true, true, true, true);
+        emit IVault.TokenIdDepositted(tokenId, alice);
 
-        uint256 shares = vault.depositToken(tokenId, alice);
+        uint256 shares = vault.depositTokenId(tokenId, alice);
         vm.stopPrank();
 
         uint256 totalAssetsAfter = totalAssetsBefore + depositAmount;
@@ -100,8 +106,10 @@ contract VaultDepositTokenTest is Base {
 
         vm.expectEmit(true, true, true, true);
         emit IERC4626.Deposit(alice, receiver, depositAmount, depositAmount);
+        vm.expectEmit(true, true, true, true);
+        emit IVault.TokenIdDepositted(tokenId, alice);
 
-        uint256 shares = vault.depositToken(tokenId, receiver);
+        uint256 shares = vault.depositTokenId(tokenId, receiver);
         vm.stopPrank();
 
         assertEq(vault.balanceOf(receiver), shares);
@@ -117,8 +125,8 @@ contract VaultDepositTokenTest is Base {
         uint256 tokenId2 = escrow.createLock(depositAmount2);
         lockNft.setApprovalForAll(address(vault), true);
 
-        uint256 shares1 = vault.depositToken(tokenId1, alice);
-        uint256 shares2 = vault.depositToken(tokenId2, alice);
+        uint256 shares1 = vault.depositTokenId(tokenId1, alice);
+        uint256 shares2 = vault.depositTokenId(tokenId2, alice);
         vm.stopPrank();
 
         assertEq(shares1, depositAmount1);
@@ -134,14 +142,14 @@ contract VaultDepositTokenTest is Base {
         vm.startPrank(alice);
         uint256 aliceTokenId = escrow.createLock(aliceAmount);
         lockNft.setApprovalForAll(address(vault), true);
-        uint256 aliceShares = vault.depositToken(aliceTokenId, alice);
+        uint256 aliceShares = vault.depositTokenId(aliceTokenId, alice);
         vm.stopPrank();
 
         // Bob deposits token
         vm.startPrank(bob);
         uint256 bobTokenId = escrow.createLock(bobAmount);
         lockNft.setApprovalForAll(address(vault), true);
-        uint256 bobShares = vault.depositToken(bobTokenId, bob);
+        uint256 bobShares = vault.depositTokenId(bobTokenId, bob);
         vm.stopPrank();
 
         assertEq(aliceShares, aliceAmount);
@@ -158,7 +166,7 @@ contract VaultDepositTokenTest is Base {
         vm.startPrank(alice);
         uint256 tokenId = escrow.createLock(depositAmount);
         lockNft.setApprovalForAll(address(vault), true);
-        vault.depositToken(tokenId, alice);
+        vault.depositTokenId(tokenId, alice);
         vm.stopPrank();
 
         uint256 masterTokenAmountAfter = escrow.locked(masterTokenId).amount;
@@ -171,25 +179,34 @@ contract VaultDepositTokenTest is Base {
     }
 
     function test_DepositTokenAfterDonation() public {
-        // Someone donates first
-        _mintAndApprove(bob, address(vault), _parseToken(100));
+        // Bob donates which increases total assets but not total supply.
+        // 1 share's price becomes bigger.
+        uint256 donateAmount = _parseToken(1941824);
+        _mintAndApprove(bob, address(vault), donateAmount);
+        vm.expectEmit(true, true, true, true);
+        emit Vault.AssetsDonated(donateAmount);
         vm.prank(bob);
-        vault.donate(_parseToken(100));
+        vault.donate(donateAmount);
 
-        uint256 shareValueBefore = vault.convertToAssets(1e18);
+        uint256 assetsPerShareBefore = vault.convertToAssets(1e18);
 
-        // Alice deposits token
-        uint256 depositAmount = _parseToken(50);
+        // Alice deposits
+        // This increases totalAssets by `depositAmount`, but totalSupply increases
+        // by smaller amount than `depositAmount`, because `convertToShares` for
+        // `depositAmount` will be less due to the donations.
+        uint256 depositAmount = _parseToken(555);
         vm.startPrank(alice);
         uint256 tokenId = escrow.createLock(depositAmount);
         lockNft.setApprovalForAll(address(vault), true);
-        uint256 shares = vault.depositToken(tokenId, alice);
+        vault.depositTokenId(tokenId, alice);
         vm.stopPrank();
 
         // Shares should be worth more than 1:1 due to donation
-        uint256 shareValueAfter = vault.convertToAssets(1e18);
-        assertEq(shareValueAfter, shareValueBefore);
-        assertLt(shares, depositAmount); // Gets fewer shares due to increased share value
+        uint256 assetsPerShareAfter = vault.convertToAssets(1e18);
+
+        // As totalSupply was increased by less amount that totalAssets,
+        // 1 share must give more assets than before.
+        assertGt(assetsPerShareAfter, assetsPerShareBefore);
     }
 
     function test_DepositTokenPreviewDeposit() public {
@@ -202,7 +219,7 @@ contract VaultDepositTokenTest is Base {
         uint256 previewedShares = vault.previewDeposit(depositAmount);
 
         lockNft.setApprovalForAll(address(vault), true);
-        uint256 actualShares = vault.depositToken(tokenId, alice);
+        uint256 actualShares = vault.depositTokenId(tokenId, alice);
         vm.stopPrank();
 
         assertEq(actualShares, previewedShares);
@@ -218,7 +235,7 @@ contract VaultDepositTokenTest is Base {
         lockNft.setApprovalForAll(address(vault), true);
 
         uint256 totalAssetsBefore = vault.totalAssets();
-        uint256 shares = vault.depositToken(tokenId, alice);
+        uint256 shares = vault.depositTokenId(tokenId, alice);
         vm.stopPrank();
 
         assertEq(vault.balanceOf(alice), shares);

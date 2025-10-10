@@ -26,7 +26,8 @@ import {
 } from "@factory/GaugesDaoFactory_v1_4_0.sol";
 
 import { VKatMetadata } from "src/VKatMetadata.sol";
-import { AutoCompoundStrategy } from "src/AutoCompoundStrategy.sol";
+import { AragonMerklAutoCompoundStrategy as AutoCompoundStrategy } from
+    "src/strategies/AragonMerklAutoCompoundStrategy.sol";
 import { AvKATVault } from "src/AvKATVault.sol";
 
 import { MockERC20 } from "@mocks/MockERC20.sol";
@@ -37,6 +38,8 @@ import {
     Deployment as KatDeployment,
     BaseContracts
 } from "src/Factory.sol";
+
+import { DefaultStrategy } from "src/strategies/DefaultStrategy.sol";
 
 contract Deploy is Script {
     using ProxyLib for address;
@@ -53,6 +56,7 @@ contract Deploy is Script {
 
         BaseContracts memory bases = BaseContracts({
             vault: address(new AvKATVault()),
+            defaultStrategy: address(new DefaultStrategy()),
             autoCompoundStrategy: address(new AutoCompoundStrategy()),
             vkatMetadata: address(new VKatMetadata())
         });

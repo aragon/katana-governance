@@ -5,9 +5,9 @@ import { Base } from "../Base.sol";
 import { ERC721ReceiverMock } from "../mocks/MockERC721.sol";
 
 contract VaultWithdrawTest is Base {
-    uint256 internal constant userCount = 20;
-    uint256 internal constant withdrawalCountAtLeast = 5;
-    uint256 internal constant AmountAtLeast = 3;
+    uint256 internal constant USER_COUNT = 20;
+    uint256 internal constant WITHDRAWAL_COUNT_AT_LEAST = 5;
+    uint256 internal constant AMOUNT_AT_LEAST = 3;
 
     struct User {
         address account;
@@ -19,7 +19,7 @@ contract VaultWithdrawTest is Base {
         super.setUp();
     }
 
-    modifier assumeValidation(User[userCount] memory _users) {
+    modifier assumeValidation(User[USER_COUNT] memory _users) {
         uint256 withdrawalCount = 0;
         uint256 amountAtLeastOne = 0;
         for (uint256 i = 0; i < _users.length; i++) {
@@ -43,13 +43,13 @@ contract VaultWithdrawTest is Base {
             }
         }
 
-        vm.assume(withdrawalCount >= withdrawalCountAtLeast);
-        vm.assume(amountAtLeastOne >= AmountAtLeast);
+        vm.assume(withdrawalCount >= WITHDRAWAL_COUNT_AT_LEAST);
+        vm.assume(amountAtLeastOne >= AMOUNT_AT_LEAST);
         _;
     }
 
     function testFuzz_NoCompound(
-        User[userCount] memory _users,
+        User[USER_COUNT] memory _users,
         uint128 _compoundAmount
     )
         public
@@ -75,13 +75,13 @@ contract VaultWithdrawTest is Base {
         assertEq(escrow.lastLockId(), _users.length + 1);
         assertEq(vault.totalAssets(), totalAssetsBefore + totalDepositAmount);
         assertEq(vault.totalSupply(), totalSharesBefore + totalDepositShares);
-        assertEq(escrow.locked(vault.masterTokenId()).amount, totalAssetsBefore + totalDepositAmount);
+        assertEq(escrow.locked(masterTokenId).amount, totalAssetsBefore + totalDepositAmount);
 
         if (_compoundAmount > 0) {
             _mintAndApprove(address(this), address(escrow), _compoundAmount);
-            uint256 tokenId = escrow.createLockFor(_compoundAmount, address(vault));
-            vm.startPrank(address(vault));
-            escrow.merge(tokenId, vault.masterTokenId());
+            uint256 tokenId = escrow.createLockFor(_compoundAmount, address(acStrategy));
+            vm.startPrank(address(acStrategy));
+            escrow.merge(tokenId, masterTokenId);
             vm.stopPrank();
         }
 
@@ -105,12 +105,12 @@ contract VaultWithdrawTest is Base {
         }
 
         assertEq(vault.totalAssets(), totalAssetsBefore - totalWithdrawAmount);
-        assertEq(escrow.locked(vault.masterTokenId()).amount, totalAssetsBefore - totalWithdrawAmount);
+        assertEq(escrow.locked(masterTokenId).amount, totalAssetsBefore - totalWithdrawAmount);
         assertEq(vault.totalSupply(), totalSharesBefore - totalWithdrawShares);
     }
 
     function testFuzz_WithCompound(
-        User[userCount] memory _users,
+        User[USER_COUNT] memory _users,
         uint128 _compoundAmount
     )
         public
@@ -183,6 +183,4 @@ contract VaultWithdrawTest is Base {
         // and withdraws those again.
         assertNotEq(temp, 0);
     }
-
-    // TODO: same test as above but use `redeem` instead of withdraw.
 }
