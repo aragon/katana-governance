@@ -9,12 +9,16 @@ import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
 import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
+import { VotingEscrow } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 
 contract VKatMetadata is IVKatMetadata, DaoAuthorizable, UUPSUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice The bytes32 identifier for admin role functions.
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+
+    /// @notice Expresses a preference to auto-compound rewards into vKat.
+    address public constant AUTOCOMPOUND_RESERVED_ADDRESS = address(type(uint160).max);
 
     /// @notice The preferences per user.
     mapping(address => VKatMetaDataV1) private preferences;
@@ -25,25 +29,17 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizable, UUPSUpgradeable {
     /// @notice The default preferences that will be used if user hasn't set it.
     VKatMetaDataV1 private defaultPreferences;
 
-    /// @notice The address of vkat token.
-    address public vKat;
+    /// @notice The address of kat token.
+    address public kat;
 
     constructor() {
         _disableInitializers();
     }
 
-    function initialize(
-        address _dao,
-        address _vkat,
-        address[] calldata _rewardTokens,
-        VKatMetaDataV1 calldata _defaultPreferences
-    )
-        external
-        initializer
-    {
+    function initialize(address _dao, address _kat, address[] calldata _rewardTokens) external initializer {
         __DaoAuthorizableUpgradeable_init(IDAO(_dao));
 
-        vKat = _vkat;
+        kat = _kat;
 
         // whitelist reward tokens.
         for (uint256 i = 0; i < _rewardTokens.length; i++) {
@@ -52,7 +48,21 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizable, UUPSUpgradeable {
             emit RewardTokenAdded(token);
         }
 
-        // Set the default preferences.
+        // add KAT as a reward token.
+        rewardTokens.add(kat);
+        emit RewardTokenAdded(kat);
+
+        // add the reserved address for auto-compounding.
+        rewardTokens.add(AUTOCOMPOUND_RESERVED_ADDRESS);
+        emit RewardTokenAdded(AUTOCOMPOUND_RESERVED_ADDRESS);
+
+        // Set the default preferences to auto-compound into vKat.
+        uint16[] memory _weights = new uint16[](1);
+        address[] memory _tokens = new address[](1);
+        VKatMetaDataV1 memory _defaultPreferences =
+            VKatMetaDataV1({ rewardTokenWeights: _weights, rewardTokens: _tokens });
+        _defaultPreferences.rewardTokens[0] = AUTOCOMPOUND_RESERVED_ADDRESS;
+        _defaultPreferences.rewardTokenWeights[0] = 1;
         _setDefaultPreferences(_defaultPreferences);
     }
 
@@ -74,6 +84,10 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizable, UUPSUpgradeable {
 
     /// @inheritdoc IVKatMetadata
     function removeRewardToken(address _token) external auth(ADMIN_ROLE) {
+        if (_token == AUTOCOMPOUND_RESERVED_ADDRESS || _token == kat) {
+            revert ReservedAddressCannotBeRemoved();
+        }
+
         bool removed = rewardTokens.remove(_token);
         if (!removed) {
             revert TokenNotInWhitelist(_token);
@@ -83,7 +97,7 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizable, UUPSUpgradeable {
     }
 
     /// @inheritdoc IVKatMetadata
-    function setDefaultPreferences(VKatMetaDataV1 calldata _preferences) external auth(ADMIN_ROLE) {
+    function setDefaultPreferences(VKatMetaDataV1 memory _preferences) external auth(ADMIN_ROLE) {
         _setDefaultPreferences(_preferences);
     }
 
@@ -126,14 +140,14 @@ contract VKatMetadata is IVKatMetadata, DaoAuthorizable, UUPSUpgradeable {
     }
 
     /// @dev Helper function to validate the new default preferences and set it.
-    function _setDefaultPreferences(VKatMetaDataV1 calldata _preferences) internal virtual {
+    function _setDefaultPreferences(VKatMetaDataV1 memory _preferences) internal virtual {
         _validatePreferences(_preferences);
 
         defaultPreferences = _preferences;
         emit DefaultPreferencesSet(_preferences);
     }
 
-    function _validatePreferences(VKatMetaDataV1 calldata _preferences) internal virtual {
+    function _validatePreferences(VKatMetaDataV1 memory _preferences) internal virtual {
         if (_preferences.rewardTokens.length != _preferences.rewardTokenWeights.length) {
             revert LengthMismatch();
         }

@@ -64,9 +64,8 @@ function deployVKatMetadata(
 {
     address metadataBase = address(new VKatMetadata());
 
-    address vkatMetadata = ProxyLib.deployUUPSProxy(
-        metadataBase, abi.encodeCall(VKatMetadata.initialize, (_dao, _token, _rewardTokens, _defaultPreferences))
-    );
+    address vkatMetadata =
+        ProxyLib.deployUUPSProxy(metadataBase, abi.encodeCall(VKatMetadata.initialize, (_dao, _token, _rewardTokens)));
 
     return (metadataBase, vkatMetadata);
 }

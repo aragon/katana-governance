@@ -70,13 +70,7 @@ contract Factory {
 
         deps.vkatMetadata = bases.vkatMetadata.deployUUPSProxy(
             abi.encodeCall(
-                VKatMetadata.initialize,
-                (
-                    _params.dao,
-                    VotingEscrow(_params.escrow).lockNFT(),
-                    new address[](0),
-                    IVKatMetadata.VKatMetaDataV1(new uint16[](0), new address[](0))
-                )
+                VKatMetadata.initialize, (_params.dao, VotingEscrow(_params.escrow).lockNFT(), new address[](0))
             )
         );
 
