@@ -49,7 +49,6 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     /// will contain all users' token ids accumulated.
     uint256 public masterTokenId;
 
-    error StrategyNotSet();
     error MasterTokenNotSet();
     error SameStrategyNotAllowed();
     error MinMasterTokenInitAmountTooLow();
@@ -57,11 +56,6 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
 
     event StrategySet(address strategy);
     event AssetsDonated(uint256 assets);
-
-    modifier whenStrategySet() {
-        if (address(strategy) == address(0)) revert StrategyNotSet();
-        _;
-    }
 
     constructor() {
         _disableInitializers();
@@ -222,16 +216,7 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     /// @inheritdoc IVaultNFT
     /// @dev Allows deposits even if `_tokenId` is already created in the escrow.
     ///      Shares are minted based on the amount locked for that tokenId in the escrow.
-    function depositTokenId(
-        uint256 _tokenId,
-        address _receiver
-    )
-        public
-        virtual
-        whenNotPaused
-        whenStrategySet
-        returns (uint256)
-    {
+    function depositTokenId(uint256 _tokenId, address _receiver) public virtual whenNotPaused returns (uint256) {
         address sender = _msgSender();
         uint256 assets = _getTokenIdAmount(_tokenId);
 
@@ -264,7 +249,6 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
         public
         virtual
         whenNotPaused
-        whenStrategySet
         returns (uint256 tokenId)
     {
         uint256 shares = previewWithdraw(_assets);
