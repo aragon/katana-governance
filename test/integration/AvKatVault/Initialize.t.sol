@@ -52,8 +52,7 @@ contract VaultInitializeTest is Base {
         // Try to deploy proxy with zero address default strategy
         vm.expectRevert(Vault.DefaultStrategyCannotBeZero.selector);
         ProxyLib.deployUUPSProxy(
-            vaultBase,
-            abi.encodeCall(Vault.initialize, (address(dao), address(escrow), address(0), "name", "symbol"))
+            vaultBase, abi.encodeCall(Vault.initialize, (address(dao), address(escrow), address(0), "name", "symbol"))
         );
     }
 }
