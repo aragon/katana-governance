@@ -24,7 +24,7 @@ contract VaultDepositTokenTest is Base {
     }
 
     function testRevert_IfPaused() public {
-        (, address vault) = deployVault(address(dao), address(escrow), "Test Vault", "TEST");
+        (, address vault) = deployVault(address(dao), address(escrow), address(defaultStrategy), "Test Vault", "TEST");
 
         vm.startPrank(alice);
         escrowToken.approve(address(escrow), _parseToken(50));

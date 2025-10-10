@@ -17,10 +17,12 @@ import { AragonMerklAutoCompoundStrategy as AutoCompoundStrategy } from
     "src/strategies/AragonMerklAutoCompoundStrategy.sol";
 
 import { deploySwapper } from "src/utils/Deployers.sol";
+import { DefaultStrategy } from "src/strategies/DefaultStrategy.sol";
 
 struct BaseContracts {
     address vault;
     address autoCompoundStrategy;
+    address defaultStrategy;
     address vkatMetadata;
 }
 
@@ -34,6 +36,7 @@ struct DeploymentParameters {
 struct Deployment {
     address vault;
     address autoCompoundStrategy;
+    address defaultStrategy;
     address swapper;
     address vkatMetadata;
 }
@@ -59,9 +62,18 @@ contract Factory {
 
         // ======== Deploys Vkat Related contracts ========
 
-        deps.vault = bases.vault.deployUUPSProxy(
-            abi.encodeCall(AvKATVault.initialize, (_params.dao, _params.escrow, "Autocompounding vKAT", "avKAT"))
+        deps.defaultStrategy = bases.defaultStrategy.deployUUPSProxy(
+            abi.encodeCall(DefaultStrategy.initialize, (_params.dao, _params.escrow, address(0)))
         );
+
+        deps.vault = bases.vault.deployUUPSProxy(
+            abi.encodeCall(
+                AvKATVault.initialize,
+                (_params.dao, _params.escrow, deps.defaultStrategy, "Autocompounding vKAT", "avKAT")
+            )
+        );
+
+        DefaultStrategy(deps.defaultStrategy).initializeAllowed(deps.vault);
 
         // deploy swapper
         deps.swapper = deploySwapper(_params.merklDistributor, _params.escrow, _params.executor);

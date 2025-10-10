@@ -23,13 +23,14 @@ import { ISwapper } from "src/interfaces/ISwapper.sol";
 import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 import { IStrategyNFT } from "src/interfaces/IStrategyNFT.sol";
 import { IStrategy } from "src/interfaces/IStrategy.sol";
+import { NFTBaseStrategy } from "../abstracts/NFTBaseStrategy.sol";
 
 contract AragonMerklAutoCompoundStrategy is
     Initializable,
     ERC721Holder,
     UUPSUpgradeable,
     DaoAuthorizable,
-    IStrategyNFT
+    NFTBaseStrategy
 {
     using SafeERC20 for IERC20;
 
@@ -52,20 +53,8 @@ contract AragonMerklAutoCompoundStrategy is
     /// @notice The swapper contract which this contract asks for claiming tokens.
     Swapper public swapper;
 
-    /// @notice The token contract that vault uses as assets.
-    address public token;
-
-    /// @notice The escrow contract
-    VotingEscrow public escrow;
-
     /// @notice The ivotes adapter for delegation
     EscrowIVotesAdapter public ivotesAdapter;
-
-    /// @notice The lock NFT contract
-    LockNFT public lockNft;
-
-    /// @notice The single tokenId that this strategy holds and manages
-    uint256 public masterTokenId;
 
     /// @notice The address that this strategy delegates voting power to.
     address public delegatee;
@@ -75,24 +64,6 @@ contract AragonMerklAutoCompoundStrategy is
 
     /// @notice Thrown when the admin tries to withdraw master token id.
     error CannotTransferMasterToken();
-
-    /// @dev Ensures only the vault can call this function
-    modifier onlyVault() {
-        if (msg.sender != address(vault)) {
-            revert OnlyVaultCanCall();
-        }
-
-        _;
-    }
-
-    /// @dev Ensures master token ID has been set
-    modifier masterTokenSet() {
-        if (masterTokenId == 0) {
-            revert MasterTokenNotSet();
-        }
-
-        _;
-    }
 
     constructor() {
         _disableInitializers();
@@ -109,17 +80,13 @@ contract AragonMerklAutoCompoundStrategy is
         initializer
     {
         __DaoAuthorizableUpgradeable_init(IDAO(_dao));
-        __ERC721Holder_init();
 
-        escrow = VotingEscrow(_escrow);
-        ivotesAdapter = EscrowIVotesAdapter(escrow.ivotesAdapter());
-        lockNft = LockNFT(escrow.lockNFT());
-        voter = GaugeVoter(escrow.voter());
-
+        ivotesAdapter = EscrowIVotesAdapter(VotingEscrow(_escrow).ivotesAdapter());
+        voter = GaugeVoter(VotingEscrow(_escrow).voter());
         swapper = Swapper(_swapper);
-
         vault = AvKATVault(_vault);
-        token = vault.asset();
+
+        __NFTBaseStrategy_init(_escrow, VotingEscrow(_escrow).token(), VotingEscrow(_escrow).lockNFT(), _vault);
 
         // As the caller on distributor's `claim` function will be swapper,
         // it can only work if this contract allowed swapper to claim on behalf.
@@ -194,73 +161,18 @@ contract AragonMerklAutoCompoundStrategy is
                 revert CannotTransferMasterToken();
             }
 
-            lockNft.safeTransferFrom(address(this), _receiver, tokenId);
+            nft.safeTransferFrom(address(this), _receiver, tokenId);
         }
 
         emit Sweep(_tokenIds, _receiver);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        IStrategyNFT Implementation
-    //////////////////////////////////////////////////////////////*/
-
     /// @inheritdoc IStrategy
-    function deposit(uint256 _amount) public virtual {
-        IERC20(token).safeTransferFrom(msg.sender, address(this), _amount);
-
-        _deposit(_amount);
-    }
-
-    /// @inheritdoc IStrategyNFT
-    function depositTokenId(uint256 _tokenId) public virtual onlyVault masterTokenSet {
-        // Merge the received token to master token
-        escrow.merge(_tokenId, masterTokenId);
-    }
-
-    /// @inheritdoc IStrategy
-    function withdraw(address _receiver, uint256 _assets) public virtual onlyVault masterTokenSet returns (uint256) {
-        // Split the master token
-        uint256 newTokenId = escrow.split(masterTokenId, _assets);
-
-        // Transfer the new token to receiver
-        lockNft.safeTransferFrom(address(this), _receiver, newTokenId);
-
-        return newTokenId;
-    }
-
-    /// @inheritdoc IStrategyNFT
-    function receiveMasterToken(uint256 _masterTokenId) public virtual onlyVault {
-        masterTokenId = _masterTokenId;
-    }
-
-    /// @inheritdoc IStrategy
-    function retireStrategy() public virtual onlyVault {
+    function retireStrategy() public virtual override {
         // For safety reasons, revoke current delegatee
         ivotesAdapter.delegate(address(0));
 
-        lockNft.safeTransferFrom(address(this), address(vault), masterTokenId);
-    }
-
-    /// @notice Returns the total assets managed by the strategy.
-    /// @return The total amount of assets locked in the master token.
-    function totalAssets() public view virtual returns (uint256) {
-        if (masterTokenId == 0) {
-            return 0;
-        }
-
-        return escrow.locked(masterTokenId).amount;
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        Internal/Private
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Creates a lock and merges it into master.
-    function _deposit(uint256 _amount) internal virtual {
-        IERC20(token).approve(address(escrow), _amount);
-        uint256 tokenId = escrow.createLock(_amount);
-
-        escrow.merge(tokenId, masterTokenId);
+        super.retireStrategy();
     }
 
     /*//////////////////////////////////////////////////////////////

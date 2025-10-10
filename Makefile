@@ -2,6 +2,7 @@
 -include .env
 
 test-invariant :; forge test --match-path "test/**/invariant/**/*.sol" -vvvv --show-progress
+test-ui :; forge test --no-match-path "test/**/invariant/**/*.sol"
 
 ifeq ($(VERIFIER),etherscan)
   VERIFIER_PARAMS := --verifier etherscan --etherscan-api-key $(ETHERSCAN_API_KEY)

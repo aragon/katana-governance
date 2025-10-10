@@ -21,6 +21,7 @@ import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
 import { IStrategyNFT as IStrategy } from "src/interfaces/IStrategyNFT.sol";
 import { IVaultNFT } from "src/interfaces/IVaultNFT.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgradeable, IVaultNFT, DaoAuthorizable {
     using SafeERC20 for IERC20;
@@ -39,6 +40,9 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
 
     /// @notice The strategy contract that holds the master token and handles escrow operations.
     IStrategy public strategy;
+
+    /// @notice TODO: GIORGI
+    IStrategy public defaultStrategy;
 
     /// The single tokenId that this vault will hold and
     /// will contain all users' token ids accumulated.
@@ -68,6 +72,7 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     function initialize(
         address _dao,
         address _escrow,
+        address _defaultStrategy,
         string memory _name,
         string memory _symbol
     )
@@ -82,6 +87,12 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
         __ERC4626_init(IERC20(escrow.token()));
 
         lockNft = LockNFT(escrow.lockNFT());
+
+        if (_defaultStrategy == address(0)) {
+            revert("TODO: GIORGI");
+        }
+
+        defaultStrategy = IStrategy(_defaultStrategy);
 
         // Always start with paused state to ensure that deposits/withdrawals can not occur.
         // Once `initializeMasterTokenAndStrategy` is called(which fills in vault), it's safer
@@ -120,14 +131,16 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
             revert MinMasterTokenInitAmountTooLow();
         }
 
+        // Transfer `_tokenId` from sender and set it to masterTokenId
         lockNft.safeTransferFrom(msg.sender, address(this), _tokenId);
-        _mint(msg.sender, convertToShares(assetAmount));
-
         masterTokenId = _tokenId;
 
-        if (address(_strategy) != address(0)) {
-            _setStrategy(_strategy);
-        }
+        // If _strategy is zero address, it will use default strategy.
+        // This automatically will transfer masterTokenId either
+        // to defaultStrategy or sender's passed strategy.
+        _setStrategy(_strategy);
+
+        _mint(msg.sender, convertToShares(assetAmount));
     }
 
     /// @notice Allows to change a strategy contract.
@@ -135,16 +148,6 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     function setStrategy(address _strategy) public auth(VAULT_ADMIN_ROLE) {
         _setStrategy(_strategy);
     }
-
-    // strategy is not set
-    // giorgi deposits 30
-    // alice deposits 50
-
-    // strategy got set
-    // 80 was created into master token id
-
-    // bob transfers directly to vault 40
-    // strategy got set to address(0)
 
     /*//////////////////////////////////////////////////////////////
                         ERC4626 OVERRIDDEN LOGIC
@@ -154,18 +157,11 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     ///      and reporting totalAssets. Otherwise, if a masterTokenId exists,
     ///      retrieve the total balance associated with it from the escrow.
     function totalAssets() public view virtual override returns (uint256) {
-        uint256 totalAssets_ = super.totalAssets();
-
-        if (address(strategy) != address(0)) {
-            return strategy.totalAssets() + totalAssets_;
+        if (address(strategy) == address(0)) {
+            return 0;
         }
 
-        // If strategy is not set:
-        //     if masterTokenId is not initialized, return balance of vault directly.
-        //     if masterTokenId is initialized, return its locked amount + if there's any balance on vault.
-        if (masterTokenId == 0) return totalAssets_;
-
-        return _getTokenIdAmount(masterTokenId) + totalAssets_;
+        return strategy.totalAssets();
     }
 
     /// @notice Transfer `assets` from caller to Vault, then to Strategy.
@@ -183,13 +179,11 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     {
         super._deposit(_caller, _receiver, _assets, _shares);
 
-        if (address(strategy) != address(0)) {
-            // Approve strategy so it can transfer `_assets`.
-            IERC20(asset()).approve(address(strategy), _assets);
+        // Approve strategy so it can transfer `_assets`.
+        IERC20(asset()).approve(address(strategy), _assets);
 
-            // Strategy handles createLock and merge to masterTokenId
-            strategy.deposit(_assets);
-        }
+        // Strategy handles createLock and merge to masterTokenId
+        strategy.deposit(_assets);
     }
 
     /// @notice Overrides withdraw function from ERC4626 to allow
@@ -282,14 +276,10 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
 
         _burn(_owner, _shares);
 
-        if (address(strategy) != address(0)) {
-            // Strategy handles split and transfer to receiver
-            tokenId = strategy.withdraw(_receiver, _assets);
+        // Strategy handles split and transfer to receiver
+        tokenId = strategy.withdraw(_receiver, _assets);
 
-            emit TokenIdWithdrawn(tokenId, _receiver);
-        } else {
-            SafeERC20.safeTransfer(IERC20(asset()), _receiver, _assets);
-        }
+        emit TokenIdWithdrawn(tokenId, _receiver);
 
         emit Withdraw(_caller, _receiver, _owner, _assets, _shares);
     }
@@ -300,13 +290,11 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     function donate(uint256 _assets) public virtual {
         SafeERC20.safeTransferFrom(IERC20(asset()), _msgSender(), address(this), _assets);
 
-        if (address(strategy) != address(0)) {
-            // Approve strategy so it can transfer `_assets`.
-            IERC20(asset()).approve(address(strategy), _assets);
+        // Approve strategy so it can transfer `_assets`.
+        IERC20(asset()).approve(address(strategy), _assets);
 
-            // Strategy handles createLock and merge to masterTokenId
-            strategy.deposit(_assets);
-        }
+        // Strategy handles createLock and merge to masterTokenId
+        strategy.deposit(_assets);
 
         emit AssetsDonated(_assets);
     }
@@ -335,22 +323,24 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
             revert SameStrategyNotAllowed();
         }
 
-        strategy = IStrategy(_strategy);
+        // If new strategy being set is zero, use the default one.
+        strategy = defaultStrategy;
+
+        if (_strategy != address(0)) {
+            strategy = IStrategy(_strategy);
+        }
 
         // If the strategy was set, retire it and get masterTokenId back.
         if (currentStrategy != address(0)) {
             IStrategy(currentStrategy).retireStrategy();
         }
 
-        // Send masterTokenId to the new strategy.
-        if (_strategy != address(0)) {
-            // strategy can only be set if master token was already initialized.
-            if (masterTokenId == 0) revert MasterTokenNotSet();
+        // strategy can only be set if master token was already initialized.
+        if (masterTokenId == 0) revert MasterTokenNotSet();
 
-            _sendMasterTokenToStrategy();
-        }
+        _sendMasterTokenToStrategy();
 
-        emit StrategySet(_strategy);
+        emit StrategySet(address(strategy));
     }
 
     /// @notice Sends master token to strategy.
@@ -361,15 +351,6 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
 
         // let new strategy what the master token id is
         strategy.receiveMasterToken(masterTokenId);
-
-        // If there's any assets on vault, transfer it also to strategy.
-        uint256 totalAssets_ = super.totalAssets();
-        if (totalAssets_ != 0) {
-            // Approve strategy so it can transfer `_assets`.
-            IERC20(asset()).approve(address(strategy), totalAssets_);
-
-            strategy.deposit(totalAssets_);
-        }
     }
 
     /// @notice Returns the amount of ERC20 tokens locked in the escrow for a given token ID.

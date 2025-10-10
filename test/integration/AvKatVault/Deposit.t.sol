@@ -22,7 +22,8 @@ contract VaultDepositTest is Base {
     }
 
     function testRevert_IfPaused() public {
-        (, address vaultAddr) = deployVault(address(dao), address(escrow), "Test Vault", "TEST");
+        (, address vaultAddr) =
+            deployVault(address(dao), address(escrow), address(defaultStrategy), "Test Vault", "TEST");
 
         vm.expectRevert("Pausable: paused");
         Vault(vaultAddr).deposit(_parseToken(100), alice);

@@ -13,25 +13,25 @@ contract AutoCompoundVaultInteractionTest is AutoCompoundBase {
     // ============= OnlyVault Modifier Tests =============
 
     function testRevert_OnlyVaultCanCall_Withdraw() public {
-        vm.expectRevert(IStrategy.OnlyVaultCanCall.selector);
+        vm.expectRevert(IStrategy.NotAllowedTODO.selector);
         vm.prank(alice);
         acStrategy.withdraw(alice, 100e18);
     }
 
     function testRevert_OnlyVaultCanCall_DepositTokenId() public {
-        vm.expectRevert(IStrategy.OnlyVaultCanCall.selector);
+        vm.expectRevert(IStrategy.NotAllowedTODO.selector);
         vm.prank(alice);
         acStrategy.depositTokenId(1);
     }
 
     function testRevert_OnlyVaultCanCall_RetireStrategy() public {
-        vm.expectRevert(IStrategy.OnlyVaultCanCall.selector);
+        vm.expectRevert(IStrategy.NotAllowedTODO.selector);
         vm.prank(alice);
         acStrategy.retireStrategy();
     }
 
     function testRevert_OnlyVaultCanCall_ReceiveMasterToken() public {
-        vm.expectRevert(IStrategy.OnlyVaultCanCall.selector);
+        vm.expectRevert(IStrategy.NotAllowedTODO.selector);
         vm.prank(alice);
         acStrategy.receiveMasterToken(123);
     }

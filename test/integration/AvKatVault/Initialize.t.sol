@@ -18,7 +18,7 @@ contract VaultInitializeTest is Base {
     }
 
     function testReverts_IfTokenNotApprovedOrOwned() public {
-        (, address newVault) = deployVault(address(dao), address(escrow), "name", "symbol");
+        (, address newVault) = deployVault(address(dao), address(escrow), address(defaultStrategy), "name", "symbol");
 
         // Create a token but don't transfer it to the vault
         escrowToken.approve(address(escrow), 1);
@@ -34,7 +34,7 @@ contract VaultInitializeTest is Base {
     }
 
     function testReverts_IfTokenIdCannotBeZero() public {
-        (, address newVault) = deployVault(address(dao), address(escrow), "name", "symbol");
+        (, address newVault) = deployVault(address(dao), address(escrow), address(defaultStrategy), "name", "symbol");
 
         vm.expectRevert(IVault.TokenIdCannotBeZero.selector);
         Vault(newVault).initializeMasterTokenAndStrategy(0, address(acStrategy));

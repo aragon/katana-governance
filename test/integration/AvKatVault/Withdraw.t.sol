@@ -7,6 +7,7 @@ import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/au
 import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IVaultNFT as IVault } from "src/interfaces/IVaultNFT.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 import { deployVault } from "src/utils/Deployers.sol";
 
@@ -19,8 +20,8 @@ contract VaultWithdrawTest is Base {
         _mintAndApprove(bob, address(vault), _parseToken(1000));
     }
 
-    function testRevert_IfPaused() public {
-        (, address vault) = deployVault(address(dao), address(escrow), "Test Vault", "TEST");
+    function testRevert_1_IfPaused() public {
+        (, address vault) = deployVault(address(dao), address(escrow), address(defaultStrategy), "Test Vault", "TEST");
 
         vm.expectRevert("Pausable: paused");
         Vault(vault).deposit(_parseToken(100), alice);
@@ -150,7 +151,7 @@ contract VaultWithdrawTest is Base {
         vault.withdraw(0, alice, alice);
     }
 
-    function test_WithdrawAll() public {
+    function test_1_WithdrawAll() public {
         uint256 depositAmount = _parseToken(100);
 
         vm.prank(alice);
