@@ -39,7 +39,7 @@ abstract contract NFTBaseStrategy is Initializable, ERC721Holder, Ownable, IStra
     /// @notice The escrow contract
     VotingEscrow public escrow;
 
-    /// @notice The ERC721 contract.
+    /// @notice The ERC721 contract for transfering tokenIds from and out of this contract.
     ERC721 public nft;
 
     modifier masterTokenSet() {
@@ -47,6 +47,14 @@ abstract contract NFTBaseStrategy is Initializable, ERC721Holder, Ownable, IStra
         _;
     }
 
+    /// @dev Initializes the NFT base strategy contract.
+    ///      IMPORTANT: It is the caller's responsibility to ensure that _asset and _nft parameters
+    ///      match exactly what the _escrow contract uses internally:
+    ///      - _asset MUST be the token that _escrow locks (typically obtained via escrow.token())
+    ///      - _nft MUST be the NFT contract that _escrow mints (typically obtained via escrow.lockNFT())
+    ///
+    ///      This explicit parameter passing (rather than reading from escrow) is needed because:
+    ///      It Allows initialization flexibility for different escrow implementations.
     function __NFTBaseStrategy_init(
         address _escrow,
         address _asset,
@@ -61,6 +69,9 @@ abstract contract NFTBaseStrategy is Initializable, ERC721Holder, Ownable, IStra
         escrow = VotingEscrow(_escrow);
         nft = ERC721(_nft);
 
+        // `_owner` is the address that will have permission for
+        // critical functions related to masterTokenId in this
+        // base contract. This `_owner` most times must be vault.
         _transferOwnership(_owner);
     }
 
@@ -68,13 +79,15 @@ abstract contract NFTBaseStrategy is Initializable, ERC721Holder, Ownable, IStra
     function deposit(uint256 _amount) public virtual {
         IERC20(asset).safeTransferFrom(msg.sender, address(this), _amount);
 
-        _deposit(_amount);
+        uint256 tokenId = _deposit(_amount);
+        emit Deposited(msg.sender, tokenId, _amount);
     }
 
     /// @inheritdoc IStrategyNFT
     function depositTokenId(uint256 _tokenId) public virtual onlyOwner masterTokenSet {
         // Merge the received token to master token
         escrow.merge(_tokenId, masterTokenId);
+        emit TokenIdDeposited(_tokenId, masterTokenId);
     }
 
     /// @inheritdoc IStrategy
@@ -85,22 +98,28 @@ abstract contract NFTBaseStrategy is Initializable, ERC721Holder, Ownable, IStra
         // Transfer the new token to receiver
         nft.safeTransferFrom(address(this), _receiver, newTokenId);
 
+        emit Withdrawn(_receiver, newTokenId, _assets);
         return newTokenId;
     }
 
     /// @inheritdoc IStrategyNFT
     function receiveMasterToken(uint256 _masterTokenId) public virtual onlyOwner {
-        // If master token was already set, don't allow to change it.
-        if (masterTokenId != 0 && masterTokenId != _masterTokenId) {
-            revert MasterTokenAlreadySet();
+        if (masterTokenId == 0) {
+            masterTokenId = _masterTokenId;
+            emit MasterTokenReceived(_masterTokenId);
+            return;
         }
 
-        masterTokenId = _masterTokenId;
+        if (masterTokenId != _masterTokenId) {
+            revert MasterTokenAlreadySet();
+        }
     }
 
     /// @inheritdoc IStrategy
     function retireStrategy() public virtual onlyOwner {
-        nft.safeTransferFrom(address(this), msg.sender, masterTokenId);
+        uint256 tokenId = masterTokenId;
+        nft.safeTransferFrom(address(this), msg.sender, tokenId);
+        emit StrategyRetired(msg.sender, tokenId);
     }
 
     /// @notice Returns the total assets managed by the strategy.
@@ -118,9 +137,9 @@ abstract contract NFTBaseStrategy is Initializable, ERC721Holder, Ownable, IStra
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Creates a lock and merges it into master.
-    function _deposit(uint256 _amount) internal virtual {
+    function _deposit(uint256 _amount) internal virtual returns (uint256 tokenId) {
         IERC20(asset).approve(address(escrow), _amount);
-        uint256 tokenId = escrow.createLock(_amount);
+        tokenId = escrow.createLock(_amount);
 
         escrow.merge(tokenId, masterTokenId);
     }

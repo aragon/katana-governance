@@ -75,6 +75,10 @@ contract AutoCompoundVaultInteractionTest is AutoCompoundBase {
         // Get initial total assets
         uint256 totalAssetsBefore = acStrategy.totalAssets();
 
+        // Expect Deposited event (don't check tokenId as it's dynamically created)
+        vm.expectEmit(true, false, false, true);
+        emit IStrategy.Deposited(alice, 2, depositAmount); // tokenId will be 2 based on test setup
+
         // Alice deposits
         vm.prank(alice);
         acStrategy.deposit(depositAmount);
@@ -110,6 +114,10 @@ contract AutoCompoundVaultInteractionTest is AutoCompoundBase {
         acStrategy.delegate(delegatee);
         assertEq(acStrategy.delegatee(), delegatee);
 
+        // Expect StrategyRetired event
+        vm.expectEmit(true, false, false, true);
+        emit IStrategy.StrategyRetired(address(vault), strategyMasterTokenId);
+
         // Only vault can retire
         vm.prank(address(vault));
         acStrategy.retireStrategy();
@@ -134,6 +142,11 @@ contract AutoCompoundVaultInteractionTest is AutoCompoundBase {
 
         // Vault sets master token
         uint256 newMasterTokenId = 999;
+
+        // Expect MasterTokenReceived event
+        vm.expectEmit(true, false, false, false);
+        emit IStrategyNFT.MasterTokenReceived(newMasterTokenId);
+
         vm.prank(address(vault));
         AutoCompoundStrategy(newStrategy).receiveMasterToken(newMasterTokenId);
 

@@ -32,11 +32,19 @@ contract DefaultStrategy is Initializable, UUPSUpgradeable, DaoAuthorizable, NFT
     ///@notice The bytes32 identifier for admin role functions.
     bytes32 public constant DEFAULT_STRATEGY_ADMIN_ROLE = keccak256("DEFAULT_STRATEGY_ADMIN_ROLE");
 
+    /// @notice Initializes the default strategy contract.
+    /// @param _dao The DAO contract address for permission management.
+    /// @param _escrow The VotingEscrow contract that manages locked tokens
+    /// @param _owner The address that will own this strategy (typically the vault)
     function initialize(address _dao, address _escrow, address _owner) external reinitializer(1) {
         __DaoAuthorizableUpgradeable_init(IDAO(_dao));
         __NFTBaseStrategy_init(_escrow, VotingEscrow(_escrow).token(), VotingEscrow(_escrow).lockNFT(), _owner);
     }
 
+    /// @notice Updates the owner of the strategy contract.
+    /// @dev This function is used for ownership migration or corrections.
+    ///      Uses reinitializer(2) to ensure it can only be called once after upgrade.
+    /// @param _owner The new owner address (typically should be the vault contract)
     function initializeOwner(address _owner) external reinitializer(2) {
         _transferOwnership(_owner);
     }
@@ -51,5 +59,5 @@ contract DefaultStrategy is Initializable, UUPSUpgradeable, DaoAuthorizable, NFT
     }
 
     /// @dev Reserved storage space to allow for layout changes in the future.
-    uint256[41] private __gap;
+    uint256[50] private __gap;
 }

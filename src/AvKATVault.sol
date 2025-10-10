@@ -23,7 +23,7 @@ import { IStrategyNFT as IStrategy } from "src/interfaces/IStrategyNFT.sol";
 import { IVaultNFT } from "src/interfaces/IVaultNFT.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
-contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgradeable, IVaultNFT, DaoAuthorizable {
+contract AvKATVault is Initializable, IVaultNFT, ERC721Holder, Pausable, ERC4626, UUPSUpgradeable, DaoAuthorizable {
     using SafeERC20 for IERC20;
 
     /// @notice bytes32 identifier for admin role functions.
@@ -42,7 +42,7 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     IStrategy public strategy;
 
     /// @notice The address of default strategy that will handle deposit/withdrawals
-    ///        in case custom strategy is set to zero.
+    ///         in case custom strategy is set to zero.
     IStrategy public defaultStrategy;
 
     /// The single tokenId that this vault will hold and
@@ -112,12 +112,20 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     }
 
     /// @inheritdoc IVaultNFT
-    /// @dev To set up the master tokenId, an existing tokenId must be
-    ///      transferred here and `initialize` called. This allows creation
-    ///      to happen later if no lock existed at deployment.
-    /// @dev NOTE: `deposit`, `withdraw`, and `donate` will revert until
-    ///     `masterTokenId` is set, as `strategy` remains address(0) and
-    ///      any calls to it will fail.
+    /// @dev Initializes the vault with a master token and strategy. This function:
+    ///      1. Transfers an existing NFT token from sender to become the vault's master token
+    ///      2. Mints vault shares to sender proportional to the token's locked amount
+    ///      3. Sets the strategy (uses defaultStrategy if _strategy is address(0))
+    ///      4. Transfers the master token to the selected strategy for management
+    ///
+    ///      Requirements:
+    ///      - Can only be called once (masterTokenId must be 0)
+    ///      - Token must exist (_tokenId != 0) and be owned/approved by sender
+    ///      - Token's locked amount must meet minimum threshold for security
+    ///      - Caller must have VAULT_ADMIN_ROLE
+    ///
+    ///      After this call, the vault becomes operational and can accept deposits/withdrawals.
+    ///      Until this is called, most vault operations will revert.
     function initializeMasterTokenAndStrategy(
         uint256 _tokenId,
         address _strategy
@@ -129,7 +137,8 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
         if (_tokenId == 0) revert TokenIdCannotBeZero();
         if (masterTokenId != 0) revert MasterTokenAlreadySet();
 
-        // mint according shares to sender.
+        // To start vault with non-trivial amount to avoid inflation attack,
+        // require that `_tokenId` contains at least `minMasterTokenInitAmount()`.
         uint256 assetAmount = _getTokenIdAmount(_tokenId);
         if (assetAmount < minMasterTokenInitAmount()) {
             revert MinMasterTokenInitAmountTooLow();
@@ -146,6 +155,7 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
         // to defaultStrategy or sender's passed strategy.
         _setStrategy(_strategy);
 
+        // mint shares to the sender.
         _mint(msg.sender, shares);
     }
 
@@ -159,9 +169,11 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
                         ERC4626 OVERRIDDEN LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev If a strategy is active, it is responsible for holding the assets
-    ///      and reporting totalAssets. Otherwise, if a masterTokenId exists,
-    ///      retrieve the total balance associated with it from the escrow.
+    /// @dev Delegates to the active strategy which holds the master token
+    ///      and tracks the actual asset amounts.
+    /// @return Total amount of underlying assets managed by the vault.
+    ///         Returns 0 if no strategy is set (vault not initialized),
+    ///         otherwise returns the total locked amount from the strategy's master token.
     function totalAssets() public view virtual override returns (uint256) {
         if (address(strategy) == address(0)) {
             return 0;
@@ -310,8 +322,14 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
         return 1e6;
     }
 
-    /// @dev Allows an admin to set a new strategy contract.
-    ///      Note: The strategy now holds the master token, not the vault.
+    /// @dev Internal function to change the vault's active strategy.
+    ///      1. Sets new strategy (uses defaultStrategy if _strategy is address(0))
+    ///      2. Retrieves master token from old strategy via retireStrategy()
+    ///      3. Transfers master token to new strategy via receiveMasterToken()
+    ///      Requirements:
+    ///      - Master token must be initialized (masterTokenId != 0)
+    ///      - New strategy must be different from current strategy
+    /// @param _strategy Address of the new strategy contract.
     function _setStrategy(address _strategy) internal virtual {
         address currentStrategy = address(strategy);
         if (currentStrategy == _strategy) {
@@ -363,5 +381,5 @@ contract AvKATVault is Initializable, ERC721Holder, Pausable, ERC4626, UUPSUpgra
     }
 
     /// @dev Reserved storage space to allow for layout changes in the future.
-    uint256[46] private __gap;
+    uint256[45] private __gap;
 }

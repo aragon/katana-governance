@@ -6,6 +6,7 @@ import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/au
 import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IStrategy } from "src/interfaces/IStrategy.sol";
+import { IStrategyNFT } from "src/interfaces/IStrategyNFT.sol";
 import { deployAutoCompoundStrategy } from "src/utils/Deployers.sol";
 
 contract VaultSetStrategyTest is Base {
@@ -64,6 +65,14 @@ contract VaultSetStrategyTest is Base {
         // Verify old strategy owns the master token before
         assertEq(lockNft.ownerOf(masterTokenId), oldStrategy);
 
+        // Expect StrategyRetired event from old strategy
+        vm.expectEmit(true, false, false, true);
+        emit IStrategy.StrategyRetired(address(vault), masterTokenId);
+
+        // Expect MasterTokenReceived event from new strategy
+        vm.expectEmit(true, false, false, false);
+        emit IStrategyNFT.MasterTokenReceived(masterTokenId);
+
         // Change strategy
         vault.setStrategy(newStrategy);
 
@@ -100,6 +109,10 @@ contract VaultSetStrategyTest is Base {
         vault.setStrategy(newStrategy);
 
         lockNft.setWhitelisted(address(newStrategy), true);
+
+        // Expect Withdrawn event from the new strategy (tokenId will be dynamically created)
+        vm.expectEmit(true, false, false, true);
+        emit IStrategy.Withdrawn(alice, 4, withdrawAmount); // tokenId 4 based on test setup
 
         // Alice's withdraw now executes with NEW strategy
         vm.prank(alice, alice);
