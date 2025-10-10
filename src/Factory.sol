@@ -81,15 +81,7 @@ contract Factory {
         deps.swapper = deploySwapper(_params.merklDistributor, _params.escrow, _params.executor);
 
         deps.vkatMetadata = bases.vkatMetadata.deployUUPSProxy(
-            abi.encodeCall(
-                VKatMetadata.initialize,
-                (
-                    _params.dao,
-                    nftLock,
-                    new address[](0),
-                    IVKatMetadata.VKatMetaDataV1(new uint16[](0), new address[](0))
-                )
-            )
+            abi.encodeCall(VKatMetadata.initialize, (_params.dao, nftLock, new address[](0)))
         );
 
         deps.autoCompoundStrategy = bases.autoCompoundStrategy.deployUUPSProxy(
