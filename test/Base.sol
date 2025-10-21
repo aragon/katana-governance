@@ -80,6 +80,9 @@ contract Base is ERC721Holder, Test {
     address internal tokenB = address(new MockERC20());
     address internal tokenC = address(new MockERC20());
 
+    // Constants
+    uint256 internal constant BASIS_POINTS = 10000;
+
     // some user addresses
     address internal alice = address(3);
     address internal bob = address(4);

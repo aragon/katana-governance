@@ -26,6 +26,8 @@ contract SwapperHandler is BaseHandler {
 
     uint256 public weightedSum;
 
+    uint256 private constant BASIS_POINTS = 10000;
+
     struct ActorData {
         uint256[] tokenIds;
         uint256 tokenAmountGained;
@@ -54,12 +56,12 @@ contract SwapperHandler is BaseHandler {
 
     function claimAndSwap(uint256 _seed, uint256 _count, uint256 _pct) public {
         _count = _bound(_count, 2, rewardTokens.length);
-        _pct = _bound(_pct, 0, 100);
+        _pct = _bound(_pct, 0, BASIS_POINTS);
         address actor = useSender(_seed);
 
         uint256[] memory amounts = new uint256[](_count);
         for (uint256 i = 0; i < amounts.length; i++) {
-            amounts[i] = _bound(amounts[i], 100, 500e18);
+            amounts[i] = _bound(amounts[i], BASIS_POINTS, 500e18);
         }
 
         // To ensure more randomness, use `_seed` to
@@ -84,10 +86,13 @@ contract SwapperHandler is BaseHandler {
         vm.prank(actor, actor);
         (uint256 tokenAmountGained, uint256 tokenId) = swapper.claimAndSwap(input, actions, _pct);
 
-        // update ghost variables
-        weightedSum += _pct * tokenAmountGained;
+        // Calculate actual locked amount (same formula as in Swapper contract)
+        uint256 lockedAmount = (tokenAmountGained * _pct) / BASIS_POINTS;
 
-        actorData[actor].weightedSum += _pct * tokenAmountGained;
+        // update ghost variables
+        weightedSum += lockedAmount;
+
+        actorData[actor].weightedSum += lockedAmount;
         actorData[actor].tokenAmountGained += tokenAmountGained;
         if (_pct != 0) {
             actorData[actor].tokenIds.push(tokenId);

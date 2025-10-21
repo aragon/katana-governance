@@ -9,6 +9,7 @@ interface ISwapper {
     error ZeroAddress();
     error LengthMismatch();
     error PctTooBig();
+    error NonContractAddress();
 
     event ClaimAndSwapped(address indexed user, address[] tokens, uint256[] claimAmounts, uint256 pct, Locked locked);
 

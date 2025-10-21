@@ -16,6 +16,9 @@ import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 contract Swapper is ISwapper, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
+    /// @notice Basis points for percentage calculations (100% = 10000 basis points)
+    uint256 private constant BASIS_POINTS = 10000;
+
     /// @notice The address of the rewards distributor where swapper can claim tokens.
     IRewardsDistributor public immutable rewardDistributor;
 
@@ -29,8 +32,8 @@ contract Swapper is ISwapper, ReentrancyGuard {
     IERC20 public immutable escrowToken;
 
     constructor(address _rewardDistributor, address _escrow, address _executor) {
-        if (_executor == address(0)) {
-            revert ZeroAddress();
+        if (_executor.code.length == 0) {
+            revert NonContractAddress();
         }
 
         rewardDistributor = IRewardsDistributor(_rewardDistributor);
@@ -49,8 +52,8 @@ contract Swapper is ISwapper, ReentrancyGuard {
         nonReentrant
         returns (uint256 tokenAmountGained, uint256 tokenId)
     {
-        // make sure percentage is never more than 100.
-        if (_pct > 100) {
+        // make sure percentage is never more than 100% (10000 basis points).
+        if (_pct > BASIS_POINTS) {
             revert PctTooBig();
         }
 
@@ -97,15 +100,17 @@ contract Swapper is ISwapper, ReentrancyGuard {
         // If pct = 0, send whole amount to sender.
         uint256 remaining = _tokenAmountGained;
         if (_pct > 0) {
-            lock.amount = (_tokenAmountGained * _pct) / 100;
+            // If _tokenAmountGained or _pct is too small, lock.amount may fall
+            // below escrow’s minDeposit and fail. Failing early avoids confusion.
+            // otherwise, the user might expect a partial lock while all funds return.
+            // User can retry with a higher _pct for a valid lock.
+            lock.amount = (_tokenAmountGained * _pct) / BASIS_POINTS;
             remaining = _tokenAmountGained - lock.amount;
 
-            // 1. approve should not revert even for non-compliant ERC20s as
+            // approve should not revert even for non-compliant ERC20s as
             // it only approves the exact amount that will be transfered
             // from this contract, automatically setting allowance back to 0.
             // we trust that escrow's createLockFor will transfer the whole lock.amount.
-            // 2. It's better to allow fail rather than silently succeed if `lock.amount`
-            // is less than minDeposit of escrow, so no need to add extra check and revert.
             escrowToken.approve(address(escrow), lock.amount);
             lock.tokenId = escrow.createLockFor(lock.amount, msg.sender);
         }
