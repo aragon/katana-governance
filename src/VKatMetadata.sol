@@ -9,7 +9,6 @@ import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
 import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
-import { VotingEscrow } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 
 contract VKatMetadata is IVKatMetadata, DaoAuthorizable, UUPSUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
