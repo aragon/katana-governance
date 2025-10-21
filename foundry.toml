@@ -32,7 +32,6 @@ wrap_comments = true
 
 [profile.dev]
 ignored_error_codes = [1878, 2519, 5815, 2462, 5740, 2018, 3860, 5574]
-ignored_warnings_paths = ["lib/"]
 
 [profile.dev.lint]
 exclude_lints = ["erc20-unchecked-transfer", "mixed-case-function"]

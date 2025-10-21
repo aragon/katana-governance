@@ -21,7 +21,6 @@ import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
 import { IStrategyNFT as IStrategy } from "src/interfaces/IStrategyNFT.sol";
 import { IVaultNFT } from "src/interfaces/IVaultNFT.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 contract AvKATVault is Initializable, IVaultNFT, ERC721Holder, Pausable, ERC4626, UUPSUpgradeable, DaoAuthorizable {
     using SafeERC20 for IERC20;

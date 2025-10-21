@@ -7,7 +7,6 @@ import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/au
 import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IVaultNFT as IVault } from "src/interfaces/IVaultNFT.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 import { deployVault } from "src/utils/Deployers.sol";
 
