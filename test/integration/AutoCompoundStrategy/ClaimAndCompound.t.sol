@@ -43,8 +43,14 @@ contract AutoCompoundClaimTest is AutoCompoundBase {
         Action[] memory actions =
             swapActionsBuilder.buildSwapActions(tokens, amounts, address(escrowToken), address(swapper));
 
+        // Verify operator is initially disabled
+        assertEq(merklDistributor.operators(address(acStrategy), address(swapper)), 0);
+
         uint256 shares = acStrategy.claimAndCompound(tokens, amounts, proofs, actions);
         assertNotEq(shares, 0);
+
+        // Verify operator is disabled again after the call
+        assertEq(merklDistributor.operators(address(acStrategy), address(swapper)), 0);
     }
 
     // tokenA swaps into tokenC and tokenB swaps into tokenC

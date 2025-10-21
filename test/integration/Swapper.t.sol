@@ -7,6 +7,7 @@ import { Errors } from "@merkl/utils/Errors.sol";
 import { ISwapper } from "src/interfaces/ISwapper.sol";
 import { Swapper } from "src/Swapper.sol";
 import { MockERC20 } from "@mocks/MockERC20.sol";
+import { console2 as console } from "forge-std/Script.sol";
 
 contract SwapperTest is Base {
     address[] internal tokens;
@@ -147,5 +148,18 @@ contract SwapperTest is Base {
         assertEq(escrowToken.balanceOf(alice), 0);
         assertEq(diff, 0);
         assertGt(MockERC20(tokenC).balanceOf(alice), aliceBalanceBeforeOnTokenC);
+    }
+
+    function testRevert_DirectRewardDistributorCall() public {
+        (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(alice, tokens, amounts);
+
+        // Create action that tries to call reward distributor directly
+        Action[] memory forbiddenActions = new Action[](1);
+        forbiddenActions[0] =
+            Action({ to: address(merklDistributor), value: 0, data: abi.encodeWithSignature("someFunction()") });
+
+        vm.expectRevert(ISwapper.RewardDistributorCallForbidden.selector);
+        vm.prank(alice, alice);
+        swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), forbiddenActions, 0);
     }
 }

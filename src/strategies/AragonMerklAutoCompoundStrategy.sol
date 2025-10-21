@@ -51,13 +51,16 @@ contract AragonMerklAutoCompoundStrategy is
     AvKATVault public vault;
 
     /// @notice The swapper contract which this contract asks for claiming tokens.
-    Swapper public swapper;
+    address public swapper;
 
     /// @notice The ivotes adapter for delegation
     EscrowIVotesAdapter public ivotesAdapter;
 
     /// @notice The address that this strategy delegates voting power to.
     address public delegatee;
+
+    /// @notice The rewards distributor contract that this contract needs to approve.
+    address public rewardsDistributor;
 
     /// @notice Emitted when the admin withdraws mistakenly withdraws token ids.
     event Sweep(uint256[] tokenIds, address receiver);
@@ -83,14 +86,12 @@ contract AragonMerklAutoCompoundStrategy is
 
         ivotesAdapter = EscrowIVotesAdapter(VotingEscrow(_escrow).ivotesAdapter());
         voter = GaugeVoter(VotingEscrow(_escrow).voter());
-        swapper = Swapper(_swapper);
         vault = AvKATVault(_vault);
 
-        __NFTBaseStrategy_init(_escrow, VotingEscrow(_escrow).token(), VotingEscrow(_escrow).lockNFT(), _vault);
+        swapper = _swapper;
+        rewardsDistributor = _rewardDistributor;
 
-        // As the caller on distributor's `claim` function will be swapper,
-        // it can only work if this contract allowed swapper to claim on behalf.
-        IRewardsDistributor(_rewardDistributor).toggleOperator(address(this), _swapper);
+        __NFTBaseStrategy_init(_escrow, VotingEscrow(_escrow).token(), VotingEscrow(_escrow).lockNFT(), _vault);
     }
 
     /// @notice Sets the delegatee address for voting power delegation.
@@ -120,10 +121,13 @@ contract AragonMerklAutoCompoundStrategy is
         auth(AUTOCOMPOUND_STRATEGY_CLAIM_COMPOUND_ROLE)
         returns (uint256)
     {
+        // Grant swapper temporary permission to claim on behalf of this contract.
+        _toggleSwapperOperator();
+
         // which tokens to claim for with their proofs and amounts.
         ISwapper.Claim memory claimTokens = ISwapper.Claim(_tokens, _amounts, _proofs);
 
-        (uint256 claimedAmount,) = swapper.claimAndSwap(claimTokens, _actions, 0);
+        (uint256 claimedAmount,) = ISwapper(swapper).claimAndSwap(claimTokens, _actions, 0);
 
         // If claimedAmount is greater than 0, autocompound received some amounts on `token`.
         // Donate to vault to increase totalAssets without minting shares.
@@ -131,6 +135,9 @@ contract AragonMerklAutoCompoundStrategy is
         if (claimedAmount > 0) {
             _deposit(claimedAmount);
         }
+
+        // Revoke swapper's permission.
+        _toggleSwapperOperator();
 
         return claimedAmount;
     }
@@ -175,6 +182,13 @@ contract AragonMerklAutoCompoundStrategy is
         super.retireStrategy();
     }
 
+    /// @dev Toggles the swapper's operator permission on the rewards distributor.
+    /// First call enables the swapper to claim on behalf of this contract.
+    /// Second call revokes that permission. Acts as a temporary authorization gate.
+    function _toggleSwapperOperator() private {
+        IRewardsDistributor(rewardsDistributor).toggleOperator(address(this), swapper);
+    }
+
     /*//////////////////////////////////////////////////////////////
                         Upgrade
     //////////////////////////////////////////////////////////////*/
@@ -185,5 +199,5 @@ contract AragonMerklAutoCompoundStrategy is
     }
 
     /// @dev Reserved storage space to allow for layout changes in the future.
-    uint256[45] private __gap;
+    uint256[44] private __gap;
 }
