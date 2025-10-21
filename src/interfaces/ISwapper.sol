@@ -11,7 +11,23 @@ interface ISwapper {
     error PctTooBig();
     error NonContractAddress();
 
-    event ClaimAndSwapped(address indexed user, address[] tokens, uint256[] claimAmounts, uint256 pct, Locked locked);
+    /// @notice Emitted when `claimAndSwap` is executed.
+    /// @param user The account that initiated the function.
+    /// @param tokens The token addresses that will be claimed.
+    /// @param claimAmounts The amounts that will be claimed.
+    /// @param pct The percentage of total amount that goes to escrow.
+    /// @param locked The tokenId that will be created on escrow with an amount.
+    /// @param actions The array of actions executed.
+    /// @param execResults The array with the results of the executed actions.
+    event ClaimAndSwapped(
+        address indexed user,
+        address[] tokens,
+        uint256[] claimAmounts,
+        uint256 pct,
+        Locked locked,
+        Action[] actions,
+        bytes[] execResults
+    );
 
     struct Claim {
         address[] tokens;

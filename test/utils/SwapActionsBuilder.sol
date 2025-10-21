@@ -35,6 +35,14 @@ contract SwapActionsBuilder is CommonBase {
         return actions;
     }
 
+    function mockSwapReturnData(uint256[] memory amounts) public view returns (bytes[] memory execResults) {
+        execResults = new bytes[](amounts.length);
+
+        for (uint256 i = 0; i < amounts.length; i++) {
+            execResults[i] = abi.encode(amounts[i] * mockSwap.swapMultiplier());
+        }
+    }
+
     // Every token is swapped into single `outputToken`.
     function buildSwapActions(
         address[] memory tokens,

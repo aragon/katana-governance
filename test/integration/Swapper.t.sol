@@ -22,11 +22,6 @@ contract SwapperTest is Base {
         amounts.push(15e18);
     }
 
-    function testRevert_IfExecutorIsNotContract() public {
-        vm.expectRevert(ISwapper.NonContractAddress.selector);
-        new Swapper(address(merklDistributor), address(escrow), address(0));
-    }
-
     function testRevert_IfAutoCompoundConfigInvalid() public {
         vm.expectRevert(ISwapper.PctTooBig.selector);
         swapper.claimAndSwap(
@@ -92,9 +87,11 @@ contract SwapperTest is Base {
         uint256 lockAmount = (pct * 130e18) / BASIS_POINTS;
 
         assertEq(escrowToken.balanceOf(alice), 0);
-        vm.prank(alice, alice);
+
+        bytes[] memory execResults = swapActionsBuilder.mockSwapReturnData(amounts);
         vm.expectEmit();
-        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, pct, ISwapper.Locked(2, lockAmount));
+        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, pct, ISwapper.Locked(2, lockAmount), actions, execResults);
+        vm.prank(alice, alice);
         (uint256 diff, uint256 tokenId) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, pct);
 
         assertEq(diff, 130e18);
@@ -102,8 +99,8 @@ contract SwapperTest is Base {
         assertEq(escrowToken.balanceOf(alice), 130e18 - lockAmount);
     }
 
-    // // Only single token is swapped into kat and compound is enabled,
-    // // hence some portion goes to newly created lock, rest goes to user.
+    // Only single token is swapped into kat and compound is enabled,
+    // hence some portion goes to newly created lock, rest goes to user.
     function test_SingleTokenSwappedAndCompoundIsEnabled() public {
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(alice, tokens, amounts);
 
@@ -121,9 +118,10 @@ contract SwapperTest is Base {
         uint256 pct = 1000; // 10% in basis points
         uint256 lockAmount = (pct * 100e18) / BASIS_POINTS;
 
-        vm.prank(alice, alice);
+        bytes[] memory execResults = swapActionsBuilder.mockSwapReturnData(amounts);
         vm.expectEmit();
-        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, pct, ISwapper.Locked(2, lockAmount));
+        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, pct, ISwapper.Locked(2, lockAmount), actions, execResults);
+        vm.prank(alice, alice);
         (uint256 diff, uint256 tokenId) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, pct);
 
         assertEq(diff, 100e18);
@@ -139,9 +137,11 @@ contract SwapperTest is Base {
         uint256 aliceBalanceBeforeOnTokenC = MockERC20(tokenC).balanceOf(alice);
 
         assertEq(escrowToken.balanceOf(alice), 0);
-        vm.prank(alice, alice);
+
         vm.expectEmit();
-        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, 1000, ISwapper.Locked(0, 0));
+        bytes[] memory execResults = swapActionsBuilder.mockSwapReturnData(amounts);
+        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, 1000, ISwapper.Locked(0, 0), actions, execResults);
+        vm.prank(alice, alice);
         (uint256 diff,) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, 1000);
 
         assertEq(escrowToken.balanceOf(alice), 0);

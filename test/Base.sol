@@ -146,12 +146,8 @@ contract Base is ERC721Holder, Test {
         (, address _merklDistributor) = deployMerklDistributor(address(this), address(1));
         merklDistributor = MerklDistributor(_merklDistributor);
 
-        KatDeploymentParams memory katParams = KatDeploymentParams({
-            merklDistributor: _merklDistributor,
-            dao: address(dao),
-            escrow: address(escrow),
-            executor: osxDeployment.globalExecutor
-        });
+        KatDeploymentParams memory katParams =
+            KatDeploymentParams({ merklDistributor: _merklDistributor, dao: address(dao), escrow: address(escrow) });
 
         katDeployment = KatFactory(_katFactory).deployOnce(katParams);
 
