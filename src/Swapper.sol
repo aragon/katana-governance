@@ -8,8 +8,9 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { VotingEscrowV1_2_0 as Escrow } from "@escrow/VotingEscrowIncreasing_v1_2_0.sol";
+import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
-import { ISwapper, Action } from "src/interfaces/ISwapper.sol";
+import { ISwapper } from "src/interfaces/ISwapper.sol";
 import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 
 contract Swapper is ISwapper, ReentrancyGuard {
@@ -41,6 +42,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
         uint256 _pct
     )
         public
+        payable
         virtual
         nonReentrant
         returns (uint256 tokenAmountGained, uint256 tokenId)
@@ -120,7 +122,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
         execResults = new bytes[](len);
         for (uint256 i = 0; i < len; i++) {
             address target = _actions[i].to;
-            (bool success, bytes memory returnData) = target.call{ value: 0 }(_actions[i].data);
+            (bool success, bytes memory returnData) = target.call{ value: _actions[i].value }(_actions[i].data);
             execResults[i] = returnData;
             target.verifyCallResultFromTarget(success, returnData, "ActionFailed");
         }

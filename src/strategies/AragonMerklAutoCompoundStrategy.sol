@@ -13,12 +13,13 @@ import { VotingEscrow, GaugeVoter, EscrowIVotesAdapter } from "@setup/GaugeVoter
 
 import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
     "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
+import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { Swapper } from "src/Swapper.sol";
-import { ISwapper, Action } from "src/interfaces/ISwapper.sol";
+import { ISwapper } from "src/interfaces/ISwapper.sol";
 import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 import { IStrategy } from "src/interfaces/IStrategy.sol";
 import { NFTBaseStrategy } from "../abstracts/NFTBaseStrategy.sol";
@@ -114,6 +115,7 @@ contract AragonMerklAutoCompoundStrategy is
         Action[] calldata _actions
     )
         public
+        payable
         virtual
         auth(AUTOCOMPOUND_STRATEGY_CLAIM_COMPOUND_ROLE)
         returns (uint256)
@@ -121,7 +123,7 @@ contract AragonMerklAutoCompoundStrategy is
         // which tokens to claim for with their proofs and amounts.
         ISwapper.Claim memory claimTokens = ISwapper.Claim(_tokens, _amounts, _proofs);
 
-        (uint256 claimedAmount,) = swapper.claimAndSwap(claimTokens, _actions, 0);
+        (uint256 claimedAmount,) = ISwapper(swapper).claimAndSwap{ value: msg.value }(claimTokens, _actions, 0);
 
         // If claimedAmount is greater than 0, autocompound received some amounts on `token`.
         // Donate to vault to increase totalAssets without minting shares.

@@ -3,8 +3,11 @@ pragma solidity ^0.8.17;
 
 import { Base } from "../Base.sol";
 import { Errors } from "@merkl/utils/Errors.sol";
-import { ISwapper, Action } from "src/interfaces/ISwapper.sol";
+import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
+
+import { ISwapper } from "src/interfaces/ISwapper.sol";
 import { MockERC20 } from "@mocks/MockERC20.sol";
+import { PayableReceiver } from "../mocks/PayableReceiver.sol";
 
 contract SwapperTest is Base {
     address[] internal tokens;
@@ -145,5 +148,27 @@ contract SwapperTest is Base {
         assertEq(escrowToken.balanceOf(alice), 0);
         assertEq(diff, 0);
         assertGt(MockERC20(tokenC).balanceOf(alice), aliceBalanceBeforeOnTokenC);
+    }
+
+    function test_ClaimAndSwapWithEthValue() public {
+        (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(alice, tokens, amounts);
+
+        // Create a mock payable contract to receive ETH
+        PayableReceiver receiver = new PayableReceiver();
+
+        // Create action that sends ETH
+        Action[] memory actionsWithValue = new Action[](1);
+        actionsWithValue[0] =
+            Action({ to: address(receiver), value: 1 ether, data: abi.encodeWithSignature("receiveEth()") });
+
+        // Fund alice with ETH
+        vm.deal(alice, 2 ether);
+
+        uint256 receiverBalanceBefore = address(receiver).balance;
+
+        vm.prank(alice, alice);
+        swapper.claimAndSwap{ value: 1 ether }(ISwapper.Claim(tokens, amounts, proofs), actionsWithValue, 0);
+
+        assertEq(address(receiver).balance, receiverBalanceBefore + 1 ether, "Receiver should have received 1 ETH");
     }
 }
