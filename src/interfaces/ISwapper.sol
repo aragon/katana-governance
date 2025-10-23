@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
+struct Action {
+    address to;
+    bytes data;
+}
 
 interface ISwapper {
     error ActionsFailed();

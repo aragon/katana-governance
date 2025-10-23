@@ -15,11 +15,10 @@ import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
     "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
 
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
-import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { Swapper } from "src/Swapper.sol";
-import { ISwapper } from "src/interfaces/ISwapper.sol";
+import { ISwapper, Action } from "src/interfaces/ISwapper.sol";
 import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 import { IStrategy } from "src/interfaces/IStrategy.sol";
 import { NFTBaseStrategy } from "../abstracts/NFTBaseStrategy.sol";
