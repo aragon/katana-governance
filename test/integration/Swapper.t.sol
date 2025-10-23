@@ -2,10 +2,8 @@
 pragma solidity ^0.8.17;
 
 import { Base } from "../Base.sol";
-import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import { Errors } from "@merkl/utils/Errors.sol";
-import { ISwapper } from "src/interfaces/ISwapper.sol";
-import { Swapper } from "src/Swapper.sol";
+import { ISwapper, Action } from "src/interfaces/ISwapper.sol";
 import { MockERC20 } from "@mocks/MockERC20.sol";
 
 contract SwapperTest is Base {

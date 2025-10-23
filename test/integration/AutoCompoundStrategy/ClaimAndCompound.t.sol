@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { AutoCompoundBase } from "./AutoCompoundBase.t.sol";
-import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
+import { Action } from "src/interfaces/ISwapper.sol";
 import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
 
 contract AutoCompoundClaimTest is AutoCompoundBase {

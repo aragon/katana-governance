@@ -28,7 +28,7 @@ contract VaultDepositTokenTest is Base {
 
         vm.startPrank(alice);
         escrowToken.approve(address(escrow), _parseToken(50));
-        uint256 tokenId = escrow.createLock(_parseToken(50));
+        escrow.createLock(_parseToken(50));
         vm.expectRevert("Pausable: paused");
         Vault(vault).deposit(_parseToken(100), alice);
         vm.stopPrank();
