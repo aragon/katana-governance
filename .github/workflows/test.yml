@@ -23,6 +23,8 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with: 
+          version: v1.3.1
 
       - name: Show Forge version
         run: |
@@ -44,7 +46,9 @@ jobs:
           submodules: recursive
 
       - name: foundry-toolchain
-        uses: foundry-rs/foundry-toolchain@v1.3.1
+        uses: foundry-rs/foundry-toolchain@v1
+        with: 
+          version: v1.3.1
 
       - name: Show Forge version
         run: forge --version
@@ -70,7 +74,9 @@ jobs:
           submodules: recursive
 
       - name: foundry-toolchain
-        uses: foundry-rs/foundry-toolchain@v1.3.1
+        uses: foundry-rs/foundry-toolchain@v1
+        with: 
+          version: v1.3.1
 
       - name: Run Forge build
         run: |
@@ -93,7 +99,9 @@ jobs:
           submodules: recursive
 
       - name: foundry-toolchain
-        uses: foundry-rs/foundry-toolchain@v1.3.1
+        uses: foundry-rs/foundry-toolchain@v1
+        with: 
+          version: v1.3.1
 
       - name: Run Forge build
         run: |
