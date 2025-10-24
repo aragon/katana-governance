@@ -2,9 +2,9 @@
 pragma solidity ^0.8.17;
 
 import { CommonBase } from "forge-std/Base.sol";
+import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
 import { MockSwap } from "../mocks/MockSwap.sol";
-import { Action } from "src/interfaces/ISwapper.sol";
 
 contract SwapActionsBuilder is CommonBase {
     MockSwap internal mockSwap;

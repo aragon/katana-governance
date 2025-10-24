@@ -13,12 +13,13 @@ import { VotingEscrow, GaugeVoter, EscrowIVotesAdapter } from "@setup/GaugeVoter
 
 import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
     "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
+import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { Swapper } from "src/Swapper.sol";
-import { ISwapper, Action } from "src/interfaces/ISwapper.sol";
+import { ISwapper } from "src/interfaces/ISwapper.sol";
 import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 import { IStrategy } from "src/interfaces/IStrategy.sol";
 import { NFTBaseStrategy } from "../abstracts/NFTBaseStrategy.sol";
@@ -49,7 +50,7 @@ contract AragonMerklAutoCompoundStrategy is
     AvKATVault public vault;
 
     /// @notice The swapper contract which this contract asks for claiming tokens.
-    Swapper public swapper;
+    address public swapper;
 
     /// @notice The ivotes adapter for delegation
     EscrowIVotesAdapter public ivotesAdapter;
@@ -81,7 +82,7 @@ contract AragonMerklAutoCompoundStrategy is
 
         ivotesAdapter = EscrowIVotesAdapter(VotingEscrow(_escrow).ivotesAdapter());
         voter = GaugeVoter(VotingEscrow(_escrow).voter());
-        swapper = Swapper(_swapper);
+        swapper = _swapper;
         vault = AvKATVault(_vault);
 
         __NFTBaseStrategy_init(_escrow, VotingEscrow(_escrow).token(), VotingEscrow(_escrow).lockNFT(), _vault);
@@ -102,6 +103,7 @@ contract AragonMerklAutoCompoundStrategy is
 
     /// @notice Claims and swaps token. If claimed amount for `token` is > 0,
     ///         it donates(i.e increases totalAssets) without minting shares.
+    /// @dev    Even if `_actions[i].value` > 0, this contract will never receive.
     /// @param _tokens Which tokens to claim.
     /// @param _amounts How much to claim for each token.
     /// @param _proofs The merkle proof that this contract holds `_amounts` on merkle distributor.
@@ -121,7 +123,7 @@ contract AragonMerklAutoCompoundStrategy is
         // which tokens to claim for with their proofs and amounts.
         ISwapper.Claim memory claimTokens = ISwapper.Claim(_tokens, _amounts, _proofs);
 
-        (uint256 claimedAmount,) = swapper.claimAndSwap(claimTokens, _actions, 0);
+        (uint256 claimedAmount,) = ISwapper(swapper).claimAndSwap(claimTokens, _actions, 0);
 
         // If claimedAmount is greater than 0, autocompound received some amounts on `token`.
         // Donate to vault to increase totalAssets without minting shares.

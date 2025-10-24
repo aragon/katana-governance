@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { AutoCompoundBase } from "./AutoCompoundBase.t.sol";
 import { AddressGaugeVoter as GaugeVoter } from "@voting/AddressGaugeVoter.sol";
-import { Action } from "src/interfaces/ISwapper.sol";
+import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
 
 contract AutoCompoundVoteTest is AutoCompoundBase {
