@@ -153,8 +153,7 @@ contract SwapperTest is Base {
 
         // Create action that tries to call reward distributor directly
         Action[] memory forbiddenActions = new Action[](1);
-        forbiddenActions[0] =
-            Action({ to: address(merklDistributor), value: 0, data: abi.encodeWithSignature("someFunction()") });
+        forbiddenActions[0] = Action({ to: address(merklDistributor), data: abi.encodeWithSignature("someFunction()") });
 
         vm.expectRevert(ISwapper.RewardDistributorCallForbidden.selector);
         vm.prank(alice, alice);
