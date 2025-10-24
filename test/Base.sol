@@ -152,7 +152,7 @@ contract Base is ERC721Holder, Test {
         katDeployment = KatFactory(_katFactory).deployOnce(katParams);
 
         vault = AvKATVault(katDeployment.vault);
-        swapper = Swapper(katDeployment.swapper);
+        swapper = Swapper(payable(katDeployment.swapper));
         acStrategy = AutoCompoundStrategy(katDeployment.autoCompoundStrategy);
         defaultStrategy = DefaultStrategy(katDeployment.defaultStrategy);
     }

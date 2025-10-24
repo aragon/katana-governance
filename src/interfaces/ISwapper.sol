@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-struct Action {
-    address to;
-    bytes data;
-}
+import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
 interface ISwapper {
     error ActionsFailed();
@@ -12,7 +9,6 @@ interface ISwapper {
     error ZeroAddress();
     error LengthMismatch();
     error PctTooBig();
-    error NonContractAddress();
     error RewardDistributorCallForbidden();
 
     /// @notice Emitted when `claimAndSwap` is executed.
@@ -58,5 +54,6 @@ interface ISwapper {
         uint256 _pct
     )
         external
+        payable
         returns (uint256 tokenAmountGained, uint256 tokenId);
 }

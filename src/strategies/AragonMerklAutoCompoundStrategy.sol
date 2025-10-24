@@ -13,12 +13,13 @@ import { VotingEscrow, GaugeVoter, EscrowIVotesAdapter } from "@setup/GaugeVoter
 
 import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
     "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
+import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { Swapper } from "src/Swapper.sol";
-import { ISwapper, Action } from "src/interfaces/ISwapper.sol";
+import { ISwapper } from "src/interfaces/ISwapper.sol";
 import { IRewardsDistributor } from "src/interfaces/IRewardsDistributor.sol";
 import { IStrategy } from "src/interfaces/IStrategy.sol";
 import { NFTBaseStrategy } from "../abstracts/NFTBaseStrategy.sol";
@@ -103,6 +104,7 @@ contract AragonMerklAutoCompoundStrategy is
 
     /// @notice Claims and swaps token. If claimed amount for `token` is > 0,
     ///         it donates(i.e increases totalAssets) without minting shares.
+    /// @dev    Even if `_actions[i].value` > 0, this contract will never receive.
     /// @param _tokens Which tokens to claim.
     /// @param _amounts How much to claim for each token.
     /// @param _proofs The merkle proof that this contract holds `_amounts` on merkle distributor.
