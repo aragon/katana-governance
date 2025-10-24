@@ -75,12 +75,8 @@ contract Swapper is ISwapper, ReentrancyGuard {
             lock = _compoundEscrowToken(_pct, tokenAmountGained);
         }
 
-        // Transfer any remaining ETH to msg.sender
-        uint256 ethBalance = address(this).balance;
-        if (ethBalance > 0) {
-            (bool success,) = msg.sender.call{ value: ethBalance }("");
-            if (!success) revert EthTransferFailed();
-        }
+        // send any remaining eth to the sender.
+        _withdrawNative();
 
         emit ClaimAndSwapped(msg.sender, _claim.tokens, _claim.amounts, _pct, lock, _actions, execResults);
 
@@ -135,5 +131,12 @@ contract Swapper is ISwapper, ReentrancyGuard {
             execResults[i] = returnData;
             target.verifyCallResultFromTarget(success, returnData, "ActionFailed");
         }
+    }
+
+    /// @notice If there is any eth, transfer to the sender.
+    /// @dev If sender is a contract and doesn't have receive/fallback,
+    ///      eth stays in swapper and next user can withdraw.
+    function _withdrawNative() internal virtual {
+        msg.sender.call{ value: address(this).balance }("");
     }
 }
