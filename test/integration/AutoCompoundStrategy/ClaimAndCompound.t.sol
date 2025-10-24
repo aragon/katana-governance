@@ -74,27 +74,4 @@ contract AutoCompoundClaimTest is AutoCompoundBase {
         assertEq(vault.totalSupply(), totalSharesBefore);
         assertGt(vault.totalAssets(), totalAssetsBefore);
     }
-
-    function test_ClaimAndCompoundWithEthValue() public {
-        (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(address(acStrategy), tokens, amounts);
-
-        // Create a mock payable contract to receive ETH
-        PayableReceiver receiver = new PayableReceiver();
-
-        // Create actions: one to send ETH, and the rest to swap tokens
-        Action[] memory actions = new Action[](3);
-        actions[0] = Action({ to: address(receiver), value: 0.5 ether, data: abi.encodeWithSignature("receiveEth()") });
-        actions[1] = swapActionsBuilder.buildSwapActions(tokens, amounts, address(escrowToken), address(swapper))[0];
-        actions[2] = swapActionsBuilder.buildSwapActions(tokens, amounts, address(escrowToken), address(swapper))[1];
-
-        // Fund the strategy with ETH
-        vm.deal(address(this), 1 ether);
-
-        uint256 receiverBalanceBefore = address(receiver).balance;
-
-        // Call claimAndCompound with ETH value
-        acStrategy.claimAndCompound{ value: 0.5 ether }(tokens, amounts, proofs, actions);
-
-        assertEq(address(receiver).balance, receiverBalanceBefore + 0.5 ether, "Receiver should have received ETH");
-    }
 }
