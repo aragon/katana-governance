@@ -68,6 +68,8 @@ contract AragonMerklAutoCompoundStrategy is
         _disableInitializers();
     }
 
+    receive() external payable { }
+
     function initialize(
         address _dao,
         address _escrow,

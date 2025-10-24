@@ -35,6 +35,8 @@ contract Swapper is ISwapper, ReentrancyGuard {
         escrowToken = IERC20(escrow.token());
     }
 
+    receive() external payable { }
+
     /// @inheritdoc ISwapper
     function claimAndSwap(
         Claim calldata _claim,
@@ -71,6 +73,13 @@ contract Swapper is ISwapper, ReentrancyGuard {
         Locked memory lock;
         if (tokenAmountGained > 0) {
             lock = _compoundEscrowToken(_pct, tokenAmountGained);
+        }
+
+        // Transfer any remaining ETH to msg.sender
+        uint256 ethBalance = address(this).balance;
+        if (ethBalance > 0) {
+            (bool success,) = msg.sender.call{ value: ethBalance }("");
+            if (!success) revert EthTransferFailed();
         }
 
         emit ClaimAndSwapped(msg.sender, _claim.tokens, _claim.amounts, _pct, lock, _actions, execResults);
