@@ -21,7 +21,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
     uint256 private constant BASIS_POINTS = 10_000;
 
     /// @notice The address of the rewards distributor where swapper can claim tokens.
-    IRewardsDistributor public immutable rewardDistributor;
+    address public immutable rewardDistributor;
 
     /// @notice The escrow contract address
     Escrow public immutable escrow;
@@ -30,7 +30,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
     IERC20 public immutable escrowToken;
 
     constructor(address _rewardDistributor, address _escrow) {
-        rewardDistributor = IRewardsDistributor(_rewardDistributor);
+        rewardDistributor = _rewardDistributor;
         escrow = Escrow(_escrow);
         escrowToken = IERC20(escrow.token());
     }
@@ -63,7 +63,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
         // The `user` must have set this contract as a recipient
         // for the `token` prior to calling this.
         // At this point, this contract holds balances on `_tokens`.
-        rewardDistributor.claim(users, _claim.tokens, _claim.amounts, _claim.proofs);
+        IRewardsDistributor(rewardDistributor).claim(users, _claim.tokens, _claim.amounts, _claim.proofs);
 
         bytes[] memory execResults = _executeActions(_actions);
 
@@ -127,6 +127,12 @@ contract Swapper is ISwapper, ReentrancyGuard {
         execResults = new bytes[](len);
         for (uint256 i = 0; i < len; i++) {
             address target = _actions[i].to;
+            // For extra safety measures, don't allow actions to call rewardsDistributor
+            // Prior this, claim is already called on it which should be enough.
+            if (target == rewardDistributor) {
+                revert RewardDistributorCallForbidden();
+            }
+
             (bool success, bytes memory returnData) = target.call{ value: _actions[i].value }(_actions[i].data);
             execResults[i] = returnData;
             target.verifyCallResultFromTarget(success, returnData, "ActionFailed");

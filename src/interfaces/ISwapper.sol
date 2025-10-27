@@ -9,7 +9,7 @@ interface ISwapper {
     error ZeroAddress();
     error LengthMismatch();
     error PctTooBig();
-    error NonContractAddress();
+    error RewardDistributorCallForbidden();
 
     /// @notice Emitted when `claimAndSwap` is executed.
     /// @param user The account that initiated the function.
