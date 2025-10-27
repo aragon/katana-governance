@@ -6,6 +6,7 @@ import { Errors } from "@merkl/utils/Errors.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
 import { ISwapper } from "src/interfaces/ISwapper.sol";
+import { Swapper } from "src/Swapper.sol";
 import { MockERC20 } from "@mocks/MockERC20.sol";
 import { PayableReceiver } from "../mocks/PayableReceiver.sol";
 import { NonPayableReceiver } from "../mocks/NonPayableReceiver.sol";

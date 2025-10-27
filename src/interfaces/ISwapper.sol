@@ -10,7 +10,6 @@ interface ISwapper {
     error LengthMismatch();
     error PctTooBig();
     error NonContractAddress();
-    error EthTransferFailed();
 
     /// @notice Emitted when `claimAndSwap` is executed.
     /// @param user The account that initiated the function.
