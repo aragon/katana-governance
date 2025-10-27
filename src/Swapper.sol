@@ -17,7 +17,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// @notice Basis points for percentage calculations (100% = 10000 basis points)
-    uint256 private constant BASIS_POINTS = 10000;
+    uint256 private constant BASIS_POINTS = 10_000;
 
     /// @notice The address of the rewards distributor where swapper can claim tokens.
     IRewardsDistributor public immutable rewardDistributor;
