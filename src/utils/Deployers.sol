@@ -30,8 +30,8 @@ function deployVault(
     return (vaultBase, vault);
 }
 
-function deploySwapper(address _merkleDistributor, address _escrow, address _executor) returns (address) {
-    address swapper = address(new Swapper(_merkleDistributor, _escrow, _executor));
+function deploySwapper(address _merkleDistributor, address _escrow) returns (address) {
+    address swapper = address(new Swapper(_merkleDistributor, _escrow));
     return swapper;
 }
 
@@ -54,14 +54,7 @@ function deployAutoCompoundStrategy(
     return (strategyBase, strategy);
 }
 
-function deployVKatMetadata(
-    address _dao,
-    address _token,
-    address[] memory _rewardTokens,
-    IVKatMetadata.VKatMetaDataV1 memory _defaultPreferences
-)
-    returns (address, address)
-{
+function deployVKatMetadata(address _dao, address _token, address[] memory _rewardTokens) returns (address, address) {
     address metadataBase = address(new VKatMetadata());
 
     address vkatMetadata =

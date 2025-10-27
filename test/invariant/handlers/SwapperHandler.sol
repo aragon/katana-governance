@@ -1,7 +1,8 @@
 pragma solidity ^0.8.17;
 
-import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import { Distributor as MerklDistributor } from "@merkl/Distributor.sol";
+
+import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
 import { Swapper } from "src/Swapper.sol";
 import { ISwapper } from "src/interfaces/ISwapper.sol";

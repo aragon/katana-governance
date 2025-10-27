@@ -49,7 +49,6 @@ contract Deploy is Script {
     address deployer = vm.addr(deployerPrivateKey);
 
     address merkleDistributor = vm.envAddress("MERKL_DISTRIBUTOR");
-    address executor = vm.envAddress("EXECUTOR");
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
@@ -80,8 +79,7 @@ contract Deploy is Script {
         KatDeploymentParams memory katParams = KatDeploymentParams({
             merklDistributor: merkleDistributor,
             dao: address(veDeployment.dao),
-            escrow: address(escrow),
-            executor: executor
+            escrow: address(escrow)
         });
 
         // Deploy all the katana contracts and grab their addresses.

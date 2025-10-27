@@ -29,7 +29,6 @@ struct DeploymentParameters {
     address merklDistributor;
     address dao;
     address escrow;
-    address executor;
 }
 
 struct Deployment {
@@ -77,7 +76,7 @@ contract Factory {
         address nftLock = VotingEscrow(_params.escrow).lockNFT();
 
         // deploy swapper
-        deps.swapper = deploySwapper(_params.merklDistributor, _params.escrow, _params.executor);
+        deps.swapper = deploySwapper(_params.merklDistributor, _params.escrow);
 
         deps.vkatMetadata = bases.vkatMetadata.deployUUPSProxy(
             abi.encodeCall(VKatMetadata.initialize, (_params.dao, nftLock, new address[](0)))

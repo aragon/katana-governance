@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { CommonBase } from "forge-std/Base.sol";
-import { Action } from "@aragon/osx-commons-contracts/src/executors/Executor.sol";
+import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
 import { MockSwap } from "../mocks/MockSwap.sol";
 
@@ -33,6 +33,14 @@ contract SwapActionsBuilder is CommonBase {
         }
 
         return actions;
+    }
+
+    function mockSwapReturnData(uint256[] memory amounts) public view returns (bytes[] memory execResults) {
+        execResults = new bytes[](amounts.length);
+
+        for (uint256 i = 0; i < amounts.length; i++) {
+            execResults[i] = abi.encode(amounts[i] * mockSwap.swapMultiplier());
+        }
     }
 
     // Every token is swapped into single `outputToken`.

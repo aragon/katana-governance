@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { AutoCompoundBase } from "./AutoCompoundBase.t.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import { DaoUnauthorized } from "@aragon/osx-commons-contracts/src/permission/auth/auth.sol";
+import { PayableReceiver } from "../../mocks/PayableReceiver.sol";
 
 contract AutoCompoundClaimTest is AutoCompoundBase {
     function testRevert_NoPermission() public {
