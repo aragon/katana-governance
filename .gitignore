@@ -14,4 +14,4 @@ docs/
 
 # Dotenv filde
 .env
-
+.DS_Store

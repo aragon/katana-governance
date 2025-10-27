@@ -12,7 +12,6 @@ import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/Pro
 
 import { AvKATVault } from "src/AvKATVault.sol";
 import { VKatMetadata } from "src/VKatMetadata.sol";
-import { IVKatMetadata } from "src/interfaces/IVKatMetadata.sol";
 import { AragonMerklAutoCompoundStrategy as AutoCompoundStrategy } from
     "src/strategies/AragonMerklAutoCompoundStrategy.sol";
 

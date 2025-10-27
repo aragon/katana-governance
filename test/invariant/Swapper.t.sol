@@ -43,7 +43,7 @@ contract SwapperInvariant is StdInvariant, Base {
     }
 
     function invariant_TotalLockedCorrectAmount() public view {
-        assertEq(initialLockAmount + h.weightedSum() / 100, escrow.totalLocked());
+        assertApproxEqAbs(initialLockAmount + h.weightedSum(), escrow.totalLocked(), BASIS_POINTS);
     }
 
     function invariant_ActorLockedAndBalanceCorrectAmount() public view {
@@ -59,8 +59,8 @@ contract SwapperInvariant is StdInvariant, Base {
                 totalLockedByActor += escrow.locked(data.tokenIds[j]).amount;
             }
 
-            assertEq(data.weightedSum / 100, totalLockedByActor);
-            assertEq(data.tokenAmountGained - data.weightedSum / 100, escrowToken.balanceOf(actor));
+            assertEq(data.weightedSum, totalLockedByActor);
+            assertEq(data.tokenAmountGained - data.weightedSum, escrowToken.balanceOf(actor));
         }
     }
 }

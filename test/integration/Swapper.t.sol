@@ -5,6 +5,7 @@ import { Base } from "../Base.sol";
 import { Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import { Errors } from "@merkl/utils/Errors.sol";
 import { ISwapper } from "src/interfaces/ISwapper.sol";
+import { Swapper } from "src/Swapper.sol";
 import { MockERC20 } from "@mocks/MockERC20.sol";
 
 contract SwapperTest is Base {
@@ -21,10 +22,15 @@ contract SwapperTest is Base {
         amounts.push(15e18);
     }
 
+    function testRevert_IfExecutorIsNotContract() public {
+        vm.expectRevert(ISwapper.NonContractAddress.selector);
+        new Swapper(address(merklDistributor), address(escrow), address(0));
+    }
+
     function testRevert_IfAutoCompoundConfigInvalid() public {
         vm.expectRevert(ISwapper.PctTooBig.selector);
         swapper.claimAndSwap(
-            ISwapper.Claim(new address[](0), new uint256[](0), new bytes32[][](0)), new Action[](0), 101
+            ISwapper.Claim(new address[](0), new uint256[](0), new bytes32[][](0)), new Action[](0), BASIS_POINTS + 1
         );
     }
 
@@ -82,8 +88,8 @@ contract SwapperTest is Base {
         Action[] memory actions =
             swapActionsBuilder.buildSwapActions(tokens, amounts, address(escrowToken), address(swapper));
 
-        uint256 pct = 10;
-        uint256 lockAmount = (pct * 130e18) / 100;
+        uint256 pct = 1000; // 10% in basis points
+        uint256 lockAmount = (pct * 130e18) / BASIS_POINTS;
 
         assertEq(escrowToken.balanceOf(alice), 0);
         vm.prank(alice, alice);
@@ -112,8 +118,8 @@ contract SwapperTest is Base {
 
         assertEq(escrowToken.balanceOf(alice), 0);
 
-        uint256 pct = 10;
-        uint256 lockAmount = (pct * 100e18) / 100;
+        uint256 pct = 1000; // 10% in basis points
+        uint256 lockAmount = (pct * 100e18) / BASIS_POINTS;
 
         vm.prank(alice, alice);
         vm.expectEmit();
@@ -135,8 +141,8 @@ contract SwapperTest is Base {
         assertEq(escrowToken.balanceOf(alice), 0);
         vm.prank(alice, alice);
         vm.expectEmit();
-        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, 10, ISwapper.Locked(0, 0));
-        (uint256 diff,) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, 10);
+        emit ISwapper.ClaimAndSwapped(alice, tokens, amounts, 1000, ISwapper.Locked(0, 0));
+        (uint256 diff,) = swapper.claimAndSwap(ISwapper.Claim(tokens, amounts, proofs), actions, 1000);
 
         assertEq(escrowToken.balanceOf(alice), 0);
         assertEq(diff, 0);

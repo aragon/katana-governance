@@ -21,7 +21,6 @@ import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
 import { IStrategyNFT as IStrategy } from "src/interfaces/IStrategyNFT.sol";
 import { IVaultNFT } from "src/interfaces/IVaultNFT.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 contract AvKATVault is Initializable, IVaultNFT, ERC721Holder, Pausable, ERC4626, UUPSUpgradeable, DaoAuthorizable {
     using SafeERC20 for IERC20;
@@ -80,6 +79,11 @@ contract AvKATVault is Initializable, IVaultNFT, ERC721Holder, Pausable, ERC4626
         __DaoAuthorizableUpgradeable_init(IDAO(_dao));
         __ERC20_init(_name, _symbol);
 
+        // Always start with paused state to ensure that deposits/withdrawals can not occur.
+        // Once `initializeMasterTokenAndStrategy` is called(which fills in vault), it's safer
+        // to unpause at that point to avoid loses with inflation attack situations.
+        _pause();
+
         escrow = VotingEscrow(_escrow);
 
         __ERC4626_init(IERC20(escrow.token()));
@@ -94,11 +98,6 @@ contract AvKATVault is Initializable, IVaultNFT, ERC721Holder, Pausable, ERC4626
         // once the master token is initialized.
         // See `initializeMasterTokenAndStrategy` for details.
         defaultStrategy = IStrategy(_defaultStrategy);
-
-        // Always start with paused state to ensure that deposits/withdrawals can not occur.
-        // Once `initializeMasterTokenAndStrategy` is called(which fills in vault), it's safer
-        // to unpause at that point to avoid loses with inflation attack situations.
-        _pause();
     }
 
     /// @notice Pauses the contract, disallowing deposits/withdrawals.
@@ -147,7 +146,7 @@ contract AvKATVault is Initializable, IVaultNFT, ERC721Holder, Pausable, ERC4626
         uint256 shares = convertToShares(assetAmount);
 
         // Transfer `_tokenId` from sender and set it to masterTokenId
-        lockNft.safeTransferFrom(msg.sender, address(this), _tokenId);
+        lockNft.transferFrom(msg.sender, address(this), _tokenId);
         masterTokenId = _tokenId;
 
         // If _strategy is zero address, it will use default strategy.
@@ -319,7 +318,7 @@ contract AvKATVault is Initializable, IVaultNFT, ERC721Holder, Pausable, ERC4626
 
     /// @inheritdoc IVaultNFT
     function minMasterTokenInitAmount() public view virtual returns (uint256) {
-        return 1e6;
+        return 10 ** decimals();
     }
 
     /// @dev Internal function to change the vault's active strategy.
@@ -337,11 +336,7 @@ contract AvKATVault is Initializable, IVaultNFT, ERC721Holder, Pausable, ERC4626
         }
 
         // If new strategy being set is zero, use the default one.
-        strategy = defaultStrategy;
-
-        if (_strategy != address(0)) {
-            strategy = IStrategy(_strategy);
-        }
+        strategy = _strategy != address(0) ? IStrategy(_strategy) : defaultStrategy;
 
         // If the strategy was set, retire it and get masterTokenId back.
         if (currentStrategy != address(0)) {
@@ -360,7 +355,7 @@ contract AvKATVault is Initializable, IVaultNFT, ERC721Holder, Pausable, ERC4626
     /// @dev Caller's responsibility to ensure that `strategy` and masterTokenId are both set.
     function _sendMasterTokenToStrategy() internal virtual {
         // transfer masterTokenId to new strategy
-        lockNft.safeTransferFrom(address(this), address(strategy), masterTokenId);
+        lockNft.transferFrom(address(this), address(strategy), masterTokenId);
 
         // let new strategy what the master token id is
         strategy.receiveMasterToken(masterTokenId);
