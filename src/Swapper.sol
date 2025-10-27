@@ -18,7 +18,7 @@ contract Swapper is ISwapper, ReentrancyGuard {
     using Address for address;
 
     /// @notice Basis points for percentage calculations (100% = 10000 basis points)
-    uint256 private constant BASIS_POINTS = 10000;
+    uint256 private constant BASIS_POINTS = 10_000;
 
     /// @notice The address of the rewards distributor where swapper can claim tokens.
     address public immutable rewardDistributor;
