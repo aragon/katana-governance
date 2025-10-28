@@ -6,6 +6,7 @@ import { IStrategy } from "./IStrategy.sol";
 interface IStrategyNFT is IStrategy {
     error MasterTokenAlreadySet();
     error MasterTokenNotSet();
+    error ZeroBalance();
 
     /// @notice Emitted when an existing token is deposited by merging to master token
     /// @param tokenId The token ID that was merged into the master token
