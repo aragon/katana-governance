@@ -217,10 +217,17 @@ contract SwapperTest is Base {
     function test_WithdrawNativeDoesNotRevertWhenCallerCannotReceiveEth() public {
         // Create a non-payable contract that will call swapper
         NonPayableReceiver nonPayable = new NonPayableReceiver();
+        vm.prank(address(nonPayable), address(nonPayable));
 
         (bytes32[][] memory proofs,) = merkleTreeHelper.buildMerkleTree(address(nonPayable), tokens, amounts);
         Action[] memory actions =
             swapActionsBuilder.buildSwapActions(tokens, amounts, address(escrowToken), address(swapper));
+
+        vm.startPrank(address(nonPayable), address(nonPayable));
+        for (uint256 i = 0; i < tokens.length; i++) {
+            merklDistributor.setClaimRecipient(address(swapper), tokens[i]);
+        }
+        vm.stopPrank();
 
         // Fund swapper with ETH
         vm.deal(address(swapper), 1 ether);

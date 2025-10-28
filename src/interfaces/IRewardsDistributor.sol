@@ -11,4 +11,7 @@ interface IRewardsDistributor {
         external;
 
     function toggleOperator(address user, address operator) external;
+    function setClaimRecipient(address user, address token) external;
+
+    function claimRecipient(address user, address token) external view returns (address);
 }

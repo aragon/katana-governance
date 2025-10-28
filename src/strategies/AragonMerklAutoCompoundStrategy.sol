@@ -124,6 +124,9 @@ contract AragonMerklAutoCompoundStrategy is
         // Grant swapper temporary permission to claim on behalf of this contract.
         _toggleSwapperOperator();
 
+        // Set claim recipients as swapper.
+        _setClaimRecipients(_tokens);
+
         // which tokens to claim for with their proofs and amounts.
         ISwapper.Claim memory claimTokens = ISwapper.Claim(_tokens, _amounts, _proofs);
 
@@ -185,8 +188,16 @@ contract AragonMerklAutoCompoundStrategy is
     /// @dev Toggles the swapper's operator permission on the rewards distributor.
     /// First call enables the swapper to claim on behalf of this contract.
     /// Second call revokes that permission. Acts as a temporary authorization gate.
-    function _toggleSwapperOperator() private {
+    function _toggleSwapperOperator() internal virtual {
         IRewardsDistributor(rewardsDistributor).toggleOperator(address(this), swapper);
+    }
+
+    /// @dev Sets recipient as swapper for each token in order for the claim reward
+    ///      to be transferred to swapper.
+    function _setClaimRecipients(address[] calldata _tokens) internal virtual {
+        for (uint256 i = 0; i < _tokens.length; i++) {
+            IRewardsDistributor(rewardsDistributor).setClaimRecipient(address(swapper), _tokens[i]);
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
