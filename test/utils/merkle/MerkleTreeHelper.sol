@@ -71,8 +71,10 @@ contract MerkleTreeHelper is CommonBase {
 
                 leaves.push(keccak256(abi.encode(user, token, amount)));
 
-                vm.prank(user);
-                merklDistributor.setClaimRecipient(swapper, token);
+                if (user.code.length == 0) {
+                    vm.prank(user);
+                    merklDistributor.setClaimRecipient(swapper, token);
+                }
 
                 vm.prank(swapper);
                 MockERC20(token).approve(swapperRouter, type(uint192).max);
