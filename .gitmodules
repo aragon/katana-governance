@@ -7,10 +7,6 @@
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/Openzeppelin/openzeppelin-contracts
-[submodule "lib/ve-governance"]
-	path = lib/ve-governance
-	url = https://github.com/aragon/ve-governance
-	branch = audit-4
 [submodule "lib/osx-commons"]
 	path = lib/osx-commons
 	url = https://github.com/aragon/osx-commons
@@ -26,9 +22,14 @@
 [submodule "lib/merkl"]
 	path = lib/merkl
 	url = https://github.com/AngleProtocol/merkl-contracts
-[submodule "lib/protocol-factory"]
-	path = lib/protocol-factory
-	url = https://github.com/aragon/protocol-factory
 [submodule "lib/erc4626-tests"]
 	path = lib/erc4626-tests
 	url = https://github.com/a16z/erc4626-tests
+[submodule "lib/ve-governance"]
+	path = lib/ve-governance
+	url = https://github.com/aragon/ve-governance
+	branch = develop
+[submodule "lib/protocol-factory"]
+	path = lib/protocol-factory
+	url = https://github.com/aragon/protocol-factory
+	branch = main
