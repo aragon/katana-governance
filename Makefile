@@ -29,3 +29,16 @@ deployMerkl:; forge script DeployMerkl \
   --broadcast \
   --verify \
   $(VERIFIER_PARAMS)
+
+deployGio:; forge script ProposalDeploy \
+  --rpc-url $(RPC_URL) \
+  --private-key $(DEPLOYMENT_PRIVATE_KEY) \
+  --broadcast
+
+deployGio1:; forge script VoteTest \
+  --rpc-url $(RPC_URL) \
+  --broadcast
+
+
+#  target contract 0x0C6086009bB2E5595c21EeF41Ab03B36e5AF2a7B
+  # batch executor  0x0beA5B104f586d5129bfb3785152f500312e4cCB
