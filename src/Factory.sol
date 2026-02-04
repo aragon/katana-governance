@@ -29,6 +29,7 @@ struct DeploymentParameters {
     address merklDistributor;
     address dao;
     address escrow;
+    address ivotesAdapter;
 }
 
 struct Deployment {
@@ -89,7 +90,7 @@ contract Factory {
             )
         );
 
-        Action[] memory actions = getActions(_params.dao, _params.escrow, nftLock, deps);
+        Action[] memory actions = getActions(_params.dao, _params.escrow, _params.ivotesAdapter, nftLock, deps);
         DAO(payable(_params.dao)).execute(bytes32(uint256(uint160(address(this)))), actions, 0);
 
         return deps;
@@ -98,6 +99,7 @@ contract Factory {
     function getActions(
         address _dao,
         address _escrow,
+        address _ivotesAdapter,
         address _nftLock,
         Deployment memory _deps
     )
@@ -162,7 +164,7 @@ contract Factory {
             condition: PermissionLib.NO_CONDITION
         });
 
-        Action[] memory actions = new Action[](6);
+        Action[] memory actions = new Action[](8);
 
         actions[0].to = _dao;
         actions[0].data = abi.encodeCall(PermissionManager.applyMultiTargetPermissions, permissions);
@@ -182,6 +184,12 @@ contract Factory {
 
         actions[5].to = _escrow;
         actions[5].data = abi.encodeCall(VotingEscrow.setEnableSplit, (_deps.autoCompoundStrategy, true));
+
+        actions[6].to = _escrow;
+        actions[6].data = abi.encodeCall(VotingEscrow.pause, ());
+
+        actions[7].to = _ivotesAdapter;
+        actions[7].data = abi.encodeCall(VotingEscrow.pause, ());
 
         return actions;
     }

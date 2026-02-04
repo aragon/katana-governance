@@ -74,12 +74,14 @@ contract Deploy is Script {
         DeploymentParameters memory veDeploymentParameters = veFactory.getDeploymentParameters();
         Deployment memory veDeployment = veFactory.getDeployment();
         VotingEscrow escrow = veDeployment.gaugeVoterPluginSets[0].votingEscrow;
+        address ivotesAdapter = address(veDeployment.gaugeVoterPluginSets[0].delegationAdapter);
 
         // Prepare arguments for katana's factory contract.
         KatDeploymentParams memory katParams = KatDeploymentParams({
             merklDistributor: merkleDistributor,
             dao: address(veDeployment.dao),
-            escrow: address(escrow)
+            escrow: address(escrow),
+            ivotesAdapter: ivotesAdapter
         });
 
         // Deploy all the katana contracts and grab their addresses.

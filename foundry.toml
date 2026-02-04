@@ -12,7 +12,9 @@ verbosity = 3
 
 fs_permissions = [
     { access = "read", path = "./multisig-members.json" },
-    { access = "write", path = "./artifacts" }
+    { access = "write", path = "./artifacts" },
+    { access = "read-write", path = "./deployments/batch-1.json" },
+    { access = "read-write", path = "./deployments/batch-2.json" },
 ]
 
 [profile.default.invariant]
