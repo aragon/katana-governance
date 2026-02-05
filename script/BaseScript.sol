@@ -38,6 +38,7 @@ import { IExecutor, Action } from "@aragon/osx-commons-contracts/src/executors/I
 
 
 interface IKatToken {
+    function INFLATION_BENEFICIARY() external view returns (bytes32);
     function UNLOCKER() external view returns (bytes32);
     function roleHolder(bytes32 role) external view returns (address);
     function unlockAndRenounceUnlocker() external;

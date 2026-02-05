@@ -130,33 +130,20 @@ contract VerifyDeployment is BaseScript {
 
     function unlockAndMintTokensAndTransferToDAO() internal {
         IKatToken katToken = IKatToken(TOKEN);
-        uint256 amount = 1000 * 10**18; // 1000 tokens
-        address temp = address(0xBEEF); // Temporary recipient
+        uint256 amount = 10e18; // 10 tokens
 
         // Unlock the token
         if (!katToken.isUnlocked()) {
             address unlocker = katToken.roleHolder(katToken.UNLOCKER());
             vm.prank(unlocker);
             katToken.unlockAndRenounceUnlocker();
-            console.log("Token unlocked");
         }
 
-        // Use stdstore to set mint capacity for temp address
-        // mintCapacity is a mapping(address => uint256), so we need to find its slot
-        stdstore
-            .target(TOKEN)
-            .sig("mintCapacity(address)")
-            .with_key(temp)
-            .checked_write(amount);
+        katToken.distributeInflation();
 
-        // Mint tokens to temp
-        vm.prank(temp);
-        katToken.mint(temp, amount);
-
-        // Transfer from temp to DAO
-        vm.prank(temp);
+        address beneficiary = katToken.roleHolder(katToken.INFLATION_BENEFICIARY());
+        vm.prank(beneficiary);
         IERC20Metadata(TOKEN).transfer(DAO, amount);
-        console.log("Transferred tokens to DAO");
     }
 
     function verifyMultisigMinApprovalIncrease() internal view {
