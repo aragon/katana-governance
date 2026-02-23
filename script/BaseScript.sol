@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
+import { Vm } from "forge-std/Vm.sol";
 import { Script } from "forge-std/Script.sol";
 import { IExecutor, Action } from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 
@@ -88,10 +89,12 @@ abstract contract BaseScript is Script {
 
     // Aragon Team Members Multisig
     address internal constant ARAGON_MEMBER_1 = 0xd953216D672218db55cAb06c2406D5f8af89D720;
+    address internal constant ARAGON_MEMBER_2 = 0xbC86D5E5F41B9D23BD2511d1CdbB9DcF1d4E2b38;
+    address internal constant ARAGON_MEMBER_3 = 0x946138B088524414EEDaf0699BA10d7Fb5673A34;
 
     // Role Grantees
-    address internal constant VOTER = COMPOUND_STRATEGY;
-    address internal constant CLAIMER = COMPOUND_STRATEGY;
+    address internal constant VOTER = address(0x1e3B175972cb7945ae84466aC199CD291605a3eE);
+    address internal constant CLAIMER = address(0x1e3B175972cb7945ae84466aC199CD291605a3eE);
 
     // Role Hashes
     bytes32 internal constant AUTOCOMPOUND_STRATEGY_VOTE_ROLE = keccak256("AUTOCOMPOUND_STRATEGY_VOTE_ROLE");
@@ -99,12 +102,12 @@ abstract contract BaseScript is Script {
 
 
     function createProposalData(
-        string memory metadata,
+        bytes memory metadata,
         Action[] memory actions
     ) internal view returns (bytes memory) {
         return abi.encodeWithSelector(
             IMultisig.createProposal.selector,
-            bytes(metadata),
+            metadata,
             actions,
             0, // allowFailureMap - all actions must succeed
             false, // approveProposal - don't auto-approve
@@ -142,5 +145,61 @@ abstract contract BaseScript is Script {
 
         json = string.concat(json, "]");
         return json;
+    }
+
+    function getLatestProposalId() internal returns (uint256 proposalId) {
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        // ProposalCreated event signature - tuple should be encoded as (address,uint256,bytes)
+        bytes32 proposalCreatedSig = keccak256("ProposalCreated(uint256,address,uint64,uint64,bytes,(address,uint256,bytes)[],uint256)");
+
+        // Search for the ProposalCreated event from the main multisig
+        for (uint i = logs.length; i > 0; i--) {
+            if (logs[i - 1].topics[0] == proposalCreatedSig && logs[i - 1].emitter == MULTISIG_PLUGIN) {
+                // First topic is the event signature, second is the indexed proposalId
+                proposalId = uint256(logs[i - 1].topics[1]);
+                return proposalId;
+            }
+        }
+
+        revert("ProposalCreated event not found");
+    }
+
+    function createProposalOnKatanaMultisig(
+        string memory metadata,
+        Action[] memory actions
+    ) internal returns (uint256 proposalId) {
+        IMultisig multisig = IMultisig(ARAGON_MULTISIG_PLUGIN);
+
+        vm.prank(ARAGON_MEMBER_1);
+        uint256 aragonProposalId = multisig.createProposal(
+            bytes(metadata),
+            actions,
+            0, // allowFailureMap - all actions must succeed
+            false, // approveProposal - approve with Aragon DAO's signature
+            false, // tryExecution - don't try to execute immediately
+            uint64(0), // startDate - 0 means now
+            uint64(block.timestamp + 5 days) // endDate - 5 days from now
+        );
+        
+        vm.prank(ARAGON_MEMBER_1);
+        multisig.approve(aragonProposalId, false);
+
+        vm.prank(ARAGON_MEMBER_2);
+        multisig.approve(aragonProposalId, false);
+
+        vm.prank(ARAGON_MEMBER_3);
+        multisig.approve(aragonProposalId, false);
+
+        vm.recordLogs();
+        multisig.execute(aragonProposalId);
+        proposalId = getLatestProposalId();
+        vm.stopPrank();
+
+        vm.prank(ARAGON_DAO);
+        IMultisig(MULTISIG_PLUGIN).approve(proposalId, false);
+
+        // Actions are executed from Katana Multisig's proposal.
+        IMultisig(MULTISIG_PLUGIN).execute(proposalId);
     }
 }

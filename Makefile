@@ -24,3 +24,16 @@ deploy:; forge script Deploy \
   $(VERIFIER_PARAMS)
 
 verify-deployment:; forge script VerifyDeployment --rpc-url $(RPC_URL)
+
+add-whitelist:; forge script AddRewardTokensActions --rpc-url $(RPC_URL)
+
+upgrade-actions:; forge script UpgradeIVotesAdapterActions \
+  --rpc-url $(RPC_URL) \
+  --retries 5 \
+  --delay 7 \
+  --broadcast \
+  --verify \
+  --private-key $(DEPLOYMENT_PRIVATE_KEY) \
+  $(VERIFIER_PARAMS)
+
+verify-upgrade-ivotesadapter:; forge script VerifyIVotesAdapterUpgrade --rpc-url $(RPC_URL)

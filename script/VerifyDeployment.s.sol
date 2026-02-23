@@ -48,10 +48,6 @@ contract VerifyDeployment is BaseScript {
             Action[] memory actions = (new Batch1Actions()).generateActions();
             uint256 proposalId = createProposalOnKatanaMultisig("Batch 1", actions);
 
-            vm.startPrank(ARAGON_DAO);
-            IMultisig(MULTISIG_PLUGIN).approve(proposalId, false);
-            IMultisig(MULTISIG_PLUGIN).execute(proposalId);
-            vm.stopPrank();
             verifyMultisigMinApprovalIncrease();
             verifyDynamicExitFeeSettings();
         }
@@ -68,64 +64,9 @@ contract VerifyDeployment is BaseScript {
             Action[] memory actions = (new Batch2Actions()).generateActions();
             uint256 proposalId = createProposalOnKatanaMultisig("Bootstrap", actions);
 
-            vm.prank(ARAGON_DAO);
-            IMultisig(MULTISIG_PLUGIN).approve(proposalId, false);
-
-            vm.prank(KAT_MEMBER_1);
-            IMultisig(MULTISIG_PLUGIN).approve(proposalId, false);
-
-            vm.prank(KAT_MEMBER_2);
-            IMultisig(MULTISIG_PLUGIN).approve(proposalId, false);
-
-            IMultisig(MULTISIG_PLUGIN).execute(proposalId);
-
             verifyPausedStates();
             assert(AvKATVault(VAULT).masterTokenId() == 1);
         }
-    }
-
-    // This creates multisig proposal on the katana multisig
-    function createProposalOnKatanaMultisig(
-        string memory metadata,
-        Action[] memory actions
-    ) internal returns (uint256 proposalId) {
-        IMultisig multisig = IMultisig(ARAGON_MULTISIG_PLUGIN);
-
-        vm.startPrank(ARAGON_MEMBER_1);
-        uint256 aragonProposalId = multisig.createProposal(
-            bytes(metadata),
-            actions,
-            0, // allowFailureMap - all actions must succeed
-            false, // approveProposal - approve with Aragon DAO's signature
-            false, // tryExecution - don't try to execute immediately
-            uint64(0), // startDate - 0 means now
-            uint64(block.timestamp + 5 days) // endDate - 5 days from now
-        );
-
-        multisig.approve(aragonProposalId, false);
-
-        vm.recordLogs();
-        multisig.execute(aragonProposalId);
-        proposalId = getLatestProposalId();
-        vm.stopPrank();
-    }
-
-    function getLatestProposalId() internal returns (uint256 proposalId) {
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-
-        // ProposalCreated event signature - tuple should be encoded as (address,uint256,bytes)
-        bytes32 proposalCreatedSig = keccak256("ProposalCreated(uint256,address,uint64,uint64,bytes,(address,uint256,bytes)[],uint256)");
-
-        // Search for the ProposalCreated event from the main multisig
-        for (uint i = logs.length; i > 0; i--) {
-            if (logs[i - 1].topics[0] == proposalCreatedSig && logs[i - 1].emitter == MULTISIG_PLUGIN) {
-                // First topic is the event signature, second is the indexed proposalId
-                proposalId = uint256(logs[i - 1].topics[1]);
-                return proposalId;
-            }
-        }
-
-        revert("ProposalCreated event not found");
     }
 
     function unlockAndMintTokensAndTransferToDAO() internal {
@@ -150,7 +91,7 @@ contract VerifyDeployment is BaseScript {
         IMultisig multisig = IMultisig(MULTISIG_PLUGIN);
         IMultisig.MultisigSettings memory settings = multisig.multisigSettings();
 
-        assert(settings.minApprovals == 3);
+        assert(settings.minApprovals == 1);
         assert(settings.onlyListed == true);
     }
 
@@ -223,7 +164,7 @@ contract VerifyDeployment is BaseScript {
         assert(minFeePercent == 250); // 2.5% in basis points
         assert(maxFeePercent == 2500); // 25% in basis points
         assert(cooldown == 45 days); // 45 days
-        assert(minCooldown == 0); // 0 days
+        assert(minCooldown == 1); // 0 days
     }
 
     function verifyEscrowMinDeposit() internal view {

@@ -11,7 +11,7 @@ contract Batch1Actions is BaseScript {
 
     function generateActions() public returns (Action[] memory) {
         // Create actions array - 7 actions total
-        Action[] memory actions = new Action[](7);
+        Action[] memory actions = new Action[](6);
 
         // Action 0: Unpause IVotesAdapter
         actions[0] = Action({
@@ -33,7 +33,7 @@ contract Batch1Actions is BaseScript {
             to: EXIT_QUEUE,
             value: 0,
             data: abi.encodeWithSignature(
-                "setDynamicExitFeePercent(uint256,uint256,uint48,uint48)", 250, 2500, 45 days, 0
+                "setDynamicExitFeePercent(uint256,uint256,uint48,uint48)", 250, 2500, 45 days, 1
             )
         });
 
@@ -65,19 +65,8 @@ contract Batch1Actions is BaseScript {
             data: abi.encodeWithSignature("pause()")
         });
 
-        // Action 6: Update multisig settings to increase minApprovals to 3
-        actions[6] = Action({
-            to: MULTISIG_PLUGIN,
-            value: 0,
-            data: abi.encodeWithSignature(
-                "updateMultisigSettings((bool,uint16))",
-                true, // onlyListed remains true
-                uint16(3) // minApprovals increased to 3
-            )
-        });
-
         bytes memory proposalData = createProposalData(
-            "Update Strategy, Queue and Multisig Settings",
+            hex"697066733a2f2f6261666b7265696466746f71776c356f6a6c37747869676c7136326d3272697064686572706b74327036746e6a6e65616b693768797a6f37677979",
             actions
         );
 
