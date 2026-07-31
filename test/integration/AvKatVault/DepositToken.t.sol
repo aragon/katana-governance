@@ -5,6 +5,8 @@ import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 import { ProxyLib } from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
 
+import { ClockV1_2_0 as Clock } from "@clock/Clock_v1_2_0.sol";
+
 import { Base } from "../../Base.sol";
 import { AvKATVault as Vault } from "src/AvKATVault.sol";
 import { IVaultNFT as IVault } from "src/interfaces/IVaultNFT.sol";
@@ -240,5 +242,96 @@ contract VaultDepositTokenTest is Base {
 
         assertEq(vault.balanceOf(alice), shares);
         assertEq(vault.totalAssets(), totalAssetsBefore + amount);
+    }
+
+    // ================== Conversion Window ==================
+
+    function testRevert_DepositTokenAfterVoteEnd() public {
+        Clock clock = _clock();
+
+        vm.startPrank(alice);
+        uint256 tokenId = escrow.createLock(_parseToken(50));
+        lockNft.setApprovalForAll(address(vault), true);
+        vm.stopPrank();
+
+        vm.warp(clock.epochVoteEndTs());
+        assertFalse(clock.votingActive());
+
+        vm.expectRevert(Vault.VotingNotActive.selector);
+        vm.prank(alice);
+        vault.depositTokenId(tokenId, alice);
+    }
+
+    function testRevert_DepositTokenInPreVotingBuffer() public {
+        Clock clock = _clock();
+
+        vm.startPrank(alice);
+        uint256 tokenId = escrow.createLock(_parseToken(50));
+        lockNft.setApprovalForAll(address(vault), true);
+        vm.stopPrank();
+
+        // Start of the next epoch, before the vote window buffer has elapsed.
+        vm.warp(clock.epochStartTs());
+        assertFalse(clock.votingActive());
+
+        vm.expectRevert(Vault.VotingNotActive.selector);
+        vm.prank(alice);
+        vault.depositTokenId(tokenId, alice);
+    }
+
+    function test_DepositTokenAtVoteStart() public {
+        Clock clock = _clock();
+
+        vm.warp(clock.epochStartTs() + clock.voteWindowBuffer());
+        assertTrue(clock.votingActive());
+
+        vm.startPrank(alice);
+        uint256 tokenId = escrow.createLock(_parseToken(50));
+        lockNft.setApprovalForAll(address(vault), true);
+        uint256 shares = vault.depositTokenId(tokenId, alice);
+        vm.stopPrank();
+
+        assertEq(vault.balanceOf(alice), shares);
+    }
+
+    function test_DepositTokenOneSecondBeforeVoteEnd() public {
+        Clock clock = _clock();
+
+        vm.warp(clock.epochVoteEndTs() - 1);
+        assertTrue(clock.votingActive());
+
+        vm.startPrank(alice);
+        uint256 tokenId = escrow.createLock(_parseToken(50));
+        lockNft.setApprovalForAll(address(vault), true);
+        uint256 shares = vault.depositTokenId(tokenId, alice);
+        vm.stopPrank();
+
+        assertEq(vault.balanceOf(alice), shares);
+    }
+
+    function test_OtherPathsRemainOpenWhenVotingInactive() public {
+        Clock clock = _clock();
+
+        vm.prank(alice);
+        vault.deposit(_parseToken(100), alice);
+
+        vm.warp(clock.epochVoteEndTs());
+        assertFalse(clock.votingActive());
+
+        vm.startPrank(alice);
+        vault.deposit(_parseToken(50), alice);
+        vault.mint(_parseToken(50), alice);
+        vault.withdraw(_parseToken(50), alice, alice);
+        vault.redeem(_parseToken(50), alice, alice);
+        uint256 tokenId = vault.withdrawTokenId(_parseToken(10), alice, alice);
+        vault.donate(_parseToken(10));
+        vm.stopPrank();
+
+        assertEq(vault.balanceOf(alice), _parseToken(90));
+        assertEq(lockNft.ownerOf(tokenId), alice);
+    }
+
+    function _clock() internal view returns (Clock) {
+        return Clock(escrow.clock());
     }
 }

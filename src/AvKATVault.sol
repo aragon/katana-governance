@@ -14,6 +14,7 @@ import { SafeERC20Upgradeable as SafeERC20 } from
     "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 
 import { VotingEscrow, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
+import { IClockV1_2_0 as IClock } from "@clock/IClock_v1_2_0.sol";
 
 import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
     "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
@@ -52,6 +53,7 @@ contract AvKATVault is Initializable, IVaultNFT, ERC721Holder, Pausable, ERC4626
     error SameStrategyNotAllowed();
     error MinMasterTokenInitAmountTooLow();
     error DefaultStrategyCannotBeZero();
+    error VotingNotActive();
 
     event StrategySet(address strategy);
     event AssetsDonated(uint256 assets);
@@ -227,7 +229,11 @@ contract AvKATVault is Initializable, IVaultNFT, ERC721Holder, Pausable, ERC4626
     /// @inheritdoc IVaultNFT
     /// @dev Allows deposits even if `_tokenId` is already created in the escrow.
     ///      Shares are minted based on the amount locked for that tokenId in the escrow.
+    /// @dev Only callable while voting is active. Outside the voting window, a tokenId that already
+    ///      voted in this epoch would earn direct rewards and the vault's compound with the same capital.
     function depositTokenId(uint256 _tokenId, address _receiver) public virtual whenNotPaused returns (uint256) {
+        if (!IClock(escrow.clock()).votingActive()) revert VotingNotActive();
+
         address sender = _msgSender();
         uint256 assets = _getTokenIdAmount(_tokenId);
 
