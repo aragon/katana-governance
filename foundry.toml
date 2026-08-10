@@ -9,9 +9,12 @@ optimizer_runs = 2000
 bytecode_hash = "none"
 cbor_metadata = false
 verbosity = 3
+ffi = true
+build_info = true
+extra_output = ["storageLayout"]
 
 fs_permissions = [
-    { access = "read", path = "./multisig-members.json" },
+    { access = "read", path = "./" },
     { access = "write", path = "./artifacts" }
 ]
 
