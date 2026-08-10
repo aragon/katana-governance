@@ -4,7 +4,7 @@
 @escrow-interfaces/=lib/ve-governance/src/escrow/increasing/interfaces/
 @escrow/=lib/ve-governance/src/escrow/
 @factory/=lib/ve-governance/src/factory/
-@foundry-upgrades/=lib/ve-governance/lib/openzeppelin-foundry-upgrades/src/
+@foundry-upgrades/=lib/ve-governance/lib/openzeppelin-foundry-upgrades/
 @helpers/=lib/ve-governance/test/helpers/
 @interfaces/=lib/ve-governance/src/interfaces/
 @libs/=lib/ve-governance/src/libs/

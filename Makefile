@@ -22,6 +22,14 @@ deploy:; forge script Deploy \
   --verify \
   $(VERIFIER_PARAMS)
 
+deployVaultImplementation:; forge script DeployVaultImplementation \
+  --rpc-url $(RPC_URL) \
+  --retries 5 \
+  --delay 7 \
+  --broadcast \
+  --verify \
+  $(VERIFIER_PARAMS)
+
 deployMerkl:; forge script DeployMerkl \
   --rpc-url $(RPC_URL) \
   --retries 6 \
