@@ -5,27 +5,39 @@ pragma solidity ^0.8.17;
 ///      Do not use in production; kept only as the reference for `Upgrades.validateUpgrade`.
 
 import { IERC20Upgradeable as IERC20 } from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import { ERC4626Upgradeable as ERC4626 } from
-    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import {
+    ERC4626Upgradeable as ERC4626
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { ERC721HolderUpgradeable as ERC721Holder } from
-    "@openzeppelin/contracts-upgradeable/token/ERC721/utils/ERC721HolderUpgradeable.sol";
+import {
+    ERC721HolderUpgradeable as ERC721Holder
+} from "@openzeppelin/contracts-upgradeable/token/ERC721/utils/ERC721HolderUpgradeable.sol";
 import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { PausableUpgradeable as Pausable } from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import { SafeERC20Upgradeable as SafeERC20 } from
-    "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import {
+    SafeERC20Upgradeable as SafeERC20
+} from "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 
 import { VotingEscrow, Lock as LockNFT } from "@setup/GaugeVoterSetup_v1_4_0.sol";
 
-import { DaoAuthorizableUpgradeable as DaoAuthorizable } from
-    "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
+import {
+    DaoAuthorizableUpgradeable as DaoAuthorizable
+} from "@aragon/osx-commons-contracts/src/permission/auth/DaoAuthorizableUpgradeable.sol";
 import { IDAO } from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 
 import { IStrategyNFT as IStrategy } from "src/interfaces/IStrategyNFT.sol";
 import { IVaultNFT } from "src/interfaces/IVaultNFT.sol";
 
-contract AvKATVaultReference is Initializable, IVaultNFT, ERC721Holder, Pausable, ERC4626, UUPSUpgradeable, DaoAuthorizable {
+contract AvKATVaultReference is
+    Initializable,
+    IVaultNFT,
+    ERC721Holder,
+    Pausable,
+    ERC4626,
+    UUPSUpgradeable,
+    DaoAuthorizable
+{
     using SafeERC20 for IERC20;
 
     /// @notice bytes32 identifier for admin role functions.
